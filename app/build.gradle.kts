@@ -23,6 +23,8 @@ android {
         versionName = "1.0.0"
         vectorDrawables.useSupportLibrary = true
         resourceConfigurations += listOf("en", "pt-rPT")
+        manifestPlaceholders["redirectSchemeName"] = "remarkable"
+        manifestPlaceholders["redirectHostName"] = "callback"
 
         ndk {
             abiFilters.clear()
