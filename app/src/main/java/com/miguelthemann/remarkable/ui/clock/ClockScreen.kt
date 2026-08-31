@@ -57,6 +57,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -75,6 +76,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -193,12 +195,12 @@ fun DeskClockContent(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             if (state.showWeather) {
-                                Box(Modifier = Modifier.offset(state.modules.weatherX.dp, state.modules.weatherY.dp)) {
+                                ModuleOffsetBox(state.modules.weatherX, state.modules.weatherY) {
                                     WeatherCard(state, onRequestLocation)
                                 }
                             }
                             if (state.showSpotify) {
-                                Box(modifier = Modifier.offset(state.modules.spotifyX.dp, state.modules.spotifyY.dp)) {
+                                ModuleOffsetBox(state.modules.spotifyX, state.modules.spotifyY) {
                                     SpotifyCard(state, viewModel)
                                 }
                             }
@@ -214,13 +216,13 @@ fun DeskClockContent(
                         ClockHero(state = state)
                         if (state.showWeather) {
                             Spacer(Modifier.height(16.dp))
-                            Box(modifier = Modifier.offset(state.modules.weatherX.dp, state.modules.weatherY.dp)) {
+                            ModuleOffsetBox(state.modules.weatherX, state.modules.weatherY) {
                                 WeatherCard(state, onRequestLocation)
                             }
                         }
                         if (state.showSpotify) {
                             Spacer(Modifier.height(12.dp))
-                            Box(modifier = Modifier.offset(state.modules.spotifyX.dp, state.modules.spotifyY.dp)) {
+                            ModuleOffsetBox(state.modules.spotifyX, state.modules.spotifyY) {
                                 SpotifyCard(state, viewModel)
                             }
                         }
@@ -245,7 +247,7 @@ private fun ClockHero(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(modifier = Modifier.offset(state.modules.timeX.dp, state.modules.timeY.dp)) {
+        ModuleOffsetBox(state.modules.timeX, state.modules.timeY) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 when (state.clockStyle) {
                     ClockStyle.ANALOG -> AnalogClock(now = state.now)
@@ -267,7 +269,7 @@ private fun ClockHero(
             }
         }
         if (state.showDate) {
-            Box(modifier = Modifier.offset(state.modules.dateX.dp, state.modules.dateY.dp)) {
+            ModuleOffsetBox(state.modules.dateX, state.modules.dateY) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -470,5 +472,20 @@ private fun Artwork(bitmap: Bitmap?) {
                 .size(72.dp)
                 .clip(RoundedCornerShape(16.dp)),
         )
+    }
+}
+
+@Composable
+private fun ModuleOffsetBox(
+    xDp: Float,
+    yDp: Float,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier.offset {
+            IntOffset(xDp.dp.roundToPx(), yDp.dp.roundToPx())
+        },
+    ) {
+        content()
     }
 }

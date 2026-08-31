@@ -5,6 +5,7 @@
 package com.miguelthemann.remarkable.ui.settings
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
