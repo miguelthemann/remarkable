@@ -3,7 +3,8 @@
   Copyright (c) 2026 Miguel Guerra
   SPDX-License-Identifier: MIT
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-sdk
         android:minSdkVersion="26"
@@ -62,12 +63,7 @@
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-        </activity>
-
-        <!-- Required by Spotify Auth SDK 2.1+ for OAuth redirect -->
-        <activity
-            android:name="com.spotify.sdk.android.auth.browser.RedirectUriReceiverActivity"
-            android:exported="true">
+            <!-- Spotify OAuth (PKCE) redirect: remarkable://callback -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -77,6 +73,16 @@
                     android:scheme="${redirectSchemeName}" />
             </intent-filter>
         </activity>
+
+        <!--
+          The Spotify auth SDK ships this receiver for remarkable://callback.
+          Remarkable runs its own PKCE flow (the SDK's app-to-app flow drops the
+          code_challenge), so the redirect must reach MainActivity instead of
+          competing with the SDK receiver for the same deep link.
+        -->
+        <activity
+            android:name="com.spotify.sdk.android.auth.browser.RedirectUriReceiverActivity"
+            tools:node="remove" />
 
         <service
             android:name=".media.MediaNotificationListener"

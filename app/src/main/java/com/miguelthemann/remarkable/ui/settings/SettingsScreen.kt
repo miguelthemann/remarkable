@@ -418,7 +418,9 @@ private fun MusicSettings(state: ClockUiState, viewModel: ClockViewModel, contex
     var styleDialog by remember { mutableStateOf(false) }
     var sourceDialog by remember { mutableStateOf(false) }
     var clientDraft by remember { mutableStateOf(state.spotifyClientId) }
+    var clientSecretDraft by remember { mutableStateOf(state.spotifyClientSecret) }
     var clientDirty by remember { mutableStateOf(false) }
+    var clientSecretDirty by remember { mutableStateOf(false) }
     var lastFmPassword by remember { mutableStateOf("") }
 
     LaunchedEffect(state.spotifyClientId) {
@@ -428,6 +430,15 @@ private fun MusicSettings(state: ClockUiState, viewModel: ClockViewModel, contex
         delay(600)
         if (clientDirty && clientDraft != state.spotifyClientId) {
             viewModel.setSpotifyClientId(clientDraft)
+        }
+    }
+    LaunchedEffect(state.spotifyClientSecret) {
+        if (!clientSecretDirty) clientSecretDraft = state.spotifyClientSecret
+    }
+    LaunchedEffect(clientSecretDraft) {
+        delay(600)
+        if (clientSecretDirty && clientSecretDraft != state.spotifyClientSecret) {
+            viewModel.setSpotifyClientSecret(clientSecretDraft)
         }
     }
 
@@ -461,6 +472,13 @@ private fun MusicSettings(state: ClockUiState, viewModel: ClockViewModel, contex
                     onValueChange = { clientDirty = true; clientDraft = it },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     label = { Text(stringResource(R.string.settings_client_id)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = clientSecretDraft,
+                    onValueChange = { clientSecretDirty = true; clientSecretDraft = it },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    label = { Text(stringResource(R.string.settings_client_secret)) },
                     singleLine = true,
                 )
                 if (state.spotifyClientId.isNotBlank()) {

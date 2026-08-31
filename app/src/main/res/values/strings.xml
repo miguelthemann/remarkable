@@ -28,6 +28,7 @@
     <string name="spotify_need_auth">Authorize Remarkable in Spotify to control playback.</string>
     <string name="spotify_authorize">Authorize with Spotify</string>
     <string name="spotify_error">Could not connect to Spotify</string>
+    <string name="spotify_auth_no_browser">No browser available to sign in to Spotify.</string>
     <string name="lastfm_need_setup">Add your Last.fm API key and username in Settings.</string>
     <string name="settings_music">Music</string>
     <string name="settings_music_source">Music service</string>
@@ -60,7 +61,8 @@
     <string name="settings_city_placeholder">Lisbon</string>
     <string name="settings_spotify">Spotify</string>
     <string name="settings_client_id">Client ID</string>
-    <string name="settings_client_id_help">On developer.spotify.com/dashboard → Create app:\n• App name: Remarkable (or any name)\n• App description: anything (required)\n• Website: optional\n• Redirect URIs: add remarkable://callback then press Add\n• APIs/SDKs: tick Android\n• Accept the terms and save\nAfter creating the app, open Settings → Android section:\n• Package name: com.miguelthemann.remarkable\n• SHA-1: fingerprint of the keystore that signs the APK you install (CI release key or local debug)\nPaste the Client ID below.</string>
+    <string name="settings_client_secret">Client Secret</string>
+    <string name="settings_client_id_help">On developer.spotify.com/dashboard → Create app:\n• App name: Remarkable (or any name)\n• App description: anything (required)\n• Website: optional\n• Redirect URIs: add remarkable://callback then press Add\n• APIs/SDKs: tick Android\n• Accept the terms and save\nAfter creating the app, open Settings → Android section:\n• Package name: com.miguelthemann.remarkable\n• SHA-1: fingerprint of the keystore that signs the APK you install (CI release key or local debug)\nPaste the Client ID below. If your app is configured as confidential, also paste the Client Secret here.</string>
     <string name="settings_spotify_redirect_uri">Redirect URI: remarkable://callback</string>
     <string name="settings_spotify_package">Android package: com.miguelthemann.remarkable</string>
     <string name="settings_spotify_authorized">Spotify account connected.</string>

@@ -4,17 +4,13 @@
  */
 package com.miguelthemann.remarkable.spotify
 
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
-import com.spotify.sdk.android.auth.AuthorizationClient
-import com.spotify.sdk.android.auth.AuthorizationRequest
-import com.spotify.sdk.android.auth.AuthorizationResponse
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -30,8 +26,21 @@ data class SpotifyAuthResult(
     val expiresAtEpochMs: Long,
 )
 
+/**
+ * Authorization Code + PKCE flow for Spotify.
+ *
+ * The authorize step is opened in the browser instead of going through
+ * `AuthorizationClient.createLoginActivityIntent`: the Spotify auth SDK prefers the
+ * app-to-app flow, which silently drops `setCustomParam` values. Without
+ * `code_challenge` reaching /authorize, Spotify treats the app as a confidential
+ * client and the token exchange then fails with "invalid client secret".
+ */
 object SpotifyAuth {
+    private const val AUTHORIZE_ENDPOINT = "https://accounts.spotify.com/authorize"
+    private const val TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token"
     private const val PKCE_VERIFIER_LENGTH = 64
+    private const val STATE_LENGTH = 16
+
     private val secureRandom = SecureRandom()
     private val tokenExchangeClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -39,9 +48,13 @@ object SpotifyAuth {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
     private val json = Json { ignoreUnknownKeys = true }
+    private val redirectUri: Uri = Uri.parse(SPOTIFY_REDIRECT_URI)
 
     @Volatile
     private var pendingCodeVerifier: String? = null
+
+    @Volatile
+    private var pendingState: String? = null
 
     private val scopes = arrayOf(
         "app-remote-control",
@@ -58,37 +71,64 @@ object SpotifyAuth {
         @SerialName("refresh_token") val refreshToken: String? = null,
     )
 
-    fun createLoginIntent(activity: Activity, clientId: String): Intent {
+    /** Browser intent for /authorize, carrying the PKCE challenge. */
+    fun createLoginIntent(clientId: String): Intent {
         val codeVerifier = generateCodeVerifier()
+        val state = generateState()
         pendingCodeVerifier = codeVerifier
-        val codeChallenge = generateCodeChallenge(codeVerifier)
+        pendingState = state
 
-        val request = AuthorizationRequest.Builder(
-            clientId,
-            AuthorizationResponse.Type.CODE,
-            SPOTIFY_REDIRECT_URI,
-        )
-            .setScopes(scopes)
-            .setShowDialog(false)
-            .setCustomParam("code_challenge", codeChallenge)
-            .setCustomParam("code_challenge_method", "S256")
+        val authorizeUri = Uri.parse(AUTHORIZE_ENDPOINT)
+            .buildUpon()
+            .appendQueryParameter("client_id", clientId)
+            .appendQueryParameter("response_type", "code")
+            .appendQueryParameter("redirect_uri", SPOTIFY_REDIRECT_URI)
+            .appendQueryParameter("scope", scopes.joinToString(" "))
+            .appendQueryParameter("code_challenge_method", "S256")
+            .appendQueryParameter("code_challenge", generateCodeChallenge(codeVerifier))
+            .appendQueryParameter("state", state)
             .build()
-        return AuthorizationClient.createLoginActivityIntent(activity, request)
+
+        return Intent(Intent.ACTION_VIEW, authorizeUri)
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
-    suspend fun parseActivityResult(
-        resultCode: Int,
-        data: Intent?,
+    /**
+     * Handles the `remarkable://callback` deep link.
+     * Returns null when [uri] is not a Spotify redirect.
+     */
+    suspend fun parseRedirect(
+        uri: Uri?,
         clientId: String,
-    ): Result<SpotifyAuthResult> {
-        if (data == null) return Result.failure(IllegalStateException("Spotify auth cancelled"))
-        return parseResponse(AuthorizationClient.getResponse(resultCode, data), clientId)
-    }
-
-    suspend fun parseRedirect(uri: Uri?, clientId: String): Result<SpotifyAuthResult>? {
+        clientSecret: String = "",
+    ): Result<SpotifyAuthResult>? {
         if (uri == null) return null
-        if (uri.scheme != "remarkable" || uri.host != "callback") return null
-        return parseResponse(AuthorizationResponse.fromUri(uri), clientId)
+        if (uri.scheme != redirectUri.scheme || uri.host != redirectUri.host) return null
+
+        val error = uri.getQueryParameter("error")
+        if (!error.isNullOrBlank()) {
+            clearPendingAuth()
+            return Result.failure(IllegalStateException("Spotify authorization failed: $error"))
+        }
+
+        val expectedState = pendingState
+        if (expectedState != null && uri.getQueryParameter("state") != expectedState) {
+            clearPendingAuth()
+            return Result.failure(
+                IllegalStateException("Spotify authorization state mismatch"),
+            )
+        }
+
+        val code = uri.getQueryParameter("code")
+        if (code.isNullOrBlank()) {
+            clearPendingAuth()
+            return Result.failure(
+                IllegalStateException("Spotify returned an empty authorization code"),
+            )
+        }
+
+        return exchangeCodeForToken(code, clientId, clientSecret)
     }
 
     fun isAuthorizationRequired(message: String): Boolean {
@@ -102,36 +142,15 @@ object SpotifyAuth {
     fun isTokenValid(expiresAtEpochMs: Long): Boolean =
         expiresAtEpochMs > System.currentTimeMillis() + 60_000L
 
-    private suspend fun parseResponse(
-        response: AuthorizationResponse,
-        clientId: String,
-    ): Result<SpotifyAuthResult> {
-        return when (response.getType()) {
-            AuthorizationResponse.Type.CODE -> {
-                val code = response.getCode()
-                if (code.isNullOrBlank()) {
-                    Result.failure(IllegalStateException("Spotify returned an empty authorization code"))
-                } else {
-                    exchangeCodeForToken(code, clientId)
-                }
-            }
-            AuthorizationResponse.Type.ERROR -> {
-                val detail = response.getError()?.takeIf { it.isNotBlank() }
-                    ?: "Spotify authorization failed"
-                Result.failure(IllegalStateException(detail))
-            }
-            else -> Result.failure(IllegalStateException("Spotify authorization cancelled"))
-        }
-    }
-
     private suspend fun exchangeCodeForToken(
         code: String,
         clientId: String,
+        clientSecret: String = "",
     ): Result<SpotifyAuthResult> = withContext(Dispatchers.IO) {
         runCatching {
             val codeVerifier = pendingCodeVerifier
                 ?: throw IllegalStateException("Spotify PKCE code verifier missing")
-            pendingCodeVerifier = null
+            clearPendingAuth()
 
             val formBody = FormBody.Builder()
                 .add("client_id", clientId)
@@ -139,12 +158,16 @@ object SpotifyAuth {
                 .add("code", code)
                 .add("redirect_uri", SPOTIFY_REDIRECT_URI)
                 .add("code_verifier", codeVerifier)
+                .apply {
+                    if (clientSecret.isNotBlank()) {
+                        add("client_secret", clientSecret)
+                    }
+                }
                 .build()
 
             val request = Request.Builder()
-                .url("https://accounts.spotify.com/api/token")
+                .url(TOKEN_ENDPOINT)
                 .post(formBody)
-                .header("Content-Type", "application/x-www-form-urlencoded")
                 .build()
 
             tokenExchangeClient.newCall(request).execute().use { response ->
@@ -173,8 +196,17 @@ object SpotifyAuth {
         }
     }
 
-    private fun generateCodeVerifier(): String {
-        val bytes = ByteArray(PKCE_VERIFIER_LENGTH)
+    private fun clearPendingAuth() {
+        pendingCodeVerifier = null
+        pendingState = null
+    }
+
+    private fun generateCodeVerifier(): String = randomUrlSafeString(PKCE_VERIFIER_LENGTH)
+
+    private fun generateState(): String = randomUrlSafeString(STATE_LENGTH)
+
+    private fun randomUrlSafeString(byteCount: Int): String {
+        val bytes = ByteArray(byteCount)
         secureRandom.nextBytes(bytes)
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }

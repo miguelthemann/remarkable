@@ -123,6 +123,7 @@ data class UserSettings(
     val useCelsius: Boolean = true,
     val city: String = "",
     val spotifyClientId: String = "",
+    val spotifyClientSecret: String = "",
     val spotifyAccessToken: String = "",
     val spotifyTokenExpiresAt: Long = 0L,
     val themeMode: ThemeMode = ThemeMode.MONET,
@@ -167,6 +168,7 @@ class UserPreferences(private val context: Context) {
     private val useCelsius = booleanPreferencesKey("use_celsius")
     private val city = stringPreferencesKey("city")
     private val spotifyClientId = stringPreferencesKey("spotify_client_id")
+    private val spotifyClientSecret = stringPreferencesKey("spotify_client_secret")
     private val spotifyAccessToken = stringPreferencesKey("spotify_access_token")
     private val spotifyTokenExpiresAt = longPreferencesKey("spotify_token_expires_at")
     private val themeMode = stringPreferencesKey("theme_mode")
@@ -222,6 +224,7 @@ class UserPreferences(private val context: Context) {
             useCelsius = prefs[useCelsius] ?: true,
             city = prefs[city].orEmpty(),
             spotifyClientId = prefs[spotifyClientId].orEmpty(),
+            spotifyClientSecret = prefs[spotifyClientSecret].orEmpty(),
             spotifyAccessToken = prefs[spotifyAccessToken].orEmpty(),
             spotifyTokenExpiresAt = prefs[spotifyTokenExpiresAt] ?: 0L,
             themeMode = prefs[themeMode]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
@@ -290,6 +293,14 @@ class UserPreferences(private val context: Context) {
             it.remove(spotifyTokenExpiresAt)
         }
         it[spotifyClientId] = trimmed
+    }
+    suspend fun setSpotifyClientSecret(value: String) = context.dataStore.edit {
+        val trimmed = value.trim()
+        if (it[spotifyClientSecret] != trimmed) {
+            it.remove(spotifyAccessToken)
+            it.remove(spotifyTokenExpiresAt)
+        }
+        it[spotifyClientSecret] = trimmed
     }
     suspend fun setSpotifyAccessToken(token: String, expiresAtEpochMs: Long) =
         context.dataStore.edit {

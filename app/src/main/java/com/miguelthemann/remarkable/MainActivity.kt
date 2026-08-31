@@ -4,6 +4,8 @@
  */
 package com.miguelthemann.remarkable
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -21,17 +23,27 @@ import com.miguelthemann.remarkable.ui.RemarkableNav
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
 import com.miguelthemann.remarkable.ui.spotify.SpotifyAuthHandler
 import com.miguelthemann.remarkable.ui.theme.RemarkableTheme
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 class MainActivity : ComponentActivity() {
+
+    /** Deep links arriving before the UI is composed are replayed to the ViewModel. */
+    private val deepLinks = MutableSharedFlow<Uri>(replay = 1, extraBufferCapacity = 4)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         hideSystemBars()
+        publishDeepLink(intent)
         setContent {
             val viewModel: ClockViewModel = viewModel()
             val state by viewModel.uiState.collectAsStateWithLifecycle()
 
             SpotifyAuthHandler(viewModel)
+
+            LaunchedEffect(viewModel) {
+                deepLinks.collect { uri -> viewModel.handleSpotifyRedirect(uri) }
+            }
 
             LaunchedEffect(state.keepAwake, state.nightDim) {
                 if (state.keepAwake) {
@@ -53,6 +65,17 @@ class MainActivity : ComponentActivity() {
                 RemarkableNav(viewModel = viewModel)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        publishDeepLink(intent)
+    }
+
+    private fun publishDeepLink(intent: Intent?) {
+        val uri = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.data ?: return
+        deepLinks.tryEmit(uri)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

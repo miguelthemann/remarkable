@@ -4,31 +4,36 @@
  */
 package com.miguelthemann.remarkable.ui.spotify
 
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
+import com.miguelthemann.remarkable.R
 import com.miguelthemann.remarkable.spotify.SpotifyAuth
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
 
-/** Launches Spotify OAuth when [ClockViewModel.authorizeSpotify] is called. */
+/**
+ * Opens Spotify's /authorize page in the browser when
+ * [ClockViewModel.authorizeSpotify] is called. The result comes back as the
+ * `remarkable://callback` deep link handled by MainActivity, so there is no
+ * activity result to collect here.
+ */
 @Composable
 fun SpotifyAuthHandler(viewModel: ClockViewModel) {
     val context = LocalContext.current
-    val activity = context as? ComponentActivity
 
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        viewModel.handleSpotifyAuthActivityResult(result.resultCode, result.data)
-    }
-
-    LaunchedEffect(activity) {
-        val host = activity ?: return@LaunchedEffect
+    LaunchedEffect(Unit) {
         viewModel.spotifyAuthRequests.collect { clientId ->
-            launcher.launch(SpotifyAuth.createLoginIntent(host, clientId))
+            val launched = runCatching {
+                context.startActivity(SpotifyAuth.createLoginIntent(clientId))
+            }.isSuccess
+            if (!launched) {
+                Toast.makeText(
+                    context,
+                    R.string.spotify_auth_no_browser,
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
         }
     }
 }

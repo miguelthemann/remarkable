@@ -5,7 +5,6 @@
 package com.miguelthemann.remarkable.ui.clock
 
 import android.app.Application
-import android.content.Intent
 import android.location.Location
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
@@ -61,6 +60,7 @@ data class ClockUiState(
     val useCelsius: Boolean = true,
     val city: String = "",
     val spotifyClientId: String = "",
+    val spotifyClientSecret: String = "",
     val spotifyAuthorized: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.MONET,
     val backgroundMode: BackgroundMode = BackgroundMode.WEATHER,
@@ -191,6 +191,7 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                 useCelsius = settings.useCelsius,
                 city = settings.city,
                 spotifyClientId = settings.spotifyClientId,
+                spotifyClientSecret = settings.spotifyClientSecret,
                 spotifyAuthorized = isSpotifyAuthorized(settings),
                 themeMode = settings.themeMode,
                 backgroundMode = settings.backgroundMode,
@@ -453,18 +454,11 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { _spotifyAuthRequests.send(clientId) }
     }
 
-    fun handleSpotifyAuthActivityResult(resultCode: Int, data: Intent?) {
-        val clientId = _uiState.value.spotifyClientId
-        viewModelScope.launch {
-            SpotifyAuth.parseActivityResult(resultCode, data, clientId)
-                .fold(::onSpotifyAuthorized, ::onSpotifyAuthFailed)
-        }
-    }
-
     fun handleSpotifyRedirect(uri: Uri) {
         val clientId = _uiState.value.spotifyClientId
+        val clientSecret = _uiState.value.spotifyClientSecret
         viewModelScope.launch {
-            SpotifyAuth.parseRedirect(uri, clientId)
+            SpotifyAuth.parseRedirect(uri, clientId, clientSecret)
                 ?.fold(::onSpotifyAuthorized, ::onSpotifyAuthFailed)
         }
     }
@@ -548,6 +542,8 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     fun setCity(value: String) = viewModelScope.launch { preferences.setCity(value) }
     fun setSpotifyClientId(value: String) =
         viewModelScope.launch { preferences.setSpotifyClientId(value) }
+    fun setSpotifyClientSecret(value: String) =
+        viewModelScope.launch { preferences.setSpotifyClientSecret(value) }
     fun setThemeMode(value: ThemeMode) = viewModelScope.launch { preferences.setThemeMode(value) }
     fun setBackgroundMode(value: BackgroundMode) =
         viewModelScope.launch { preferences.setBackgroundMode(value) }
