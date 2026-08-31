@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.miguelthemann.remarkable.media.MusicSource
@@ -122,6 +123,8 @@ data class UserSettings(
     val useCelsius: Boolean = true,
     val city: String = "",
     val spotifyClientId: String = "",
+    val spotifyAccessToken: String = "",
+    val spotifyTokenExpiresAt: Long = 0L,
     val themeMode: ThemeMode = ThemeMode.MONET,
     val backgroundMode: BackgroundMode = BackgroundMode.WEATHER,
     val clockStyle: ClockStyle = ClockStyle.BOTH,
@@ -164,6 +167,8 @@ class UserPreferences(private val context: Context) {
     private val useCelsius = booleanPreferencesKey("use_celsius")
     private val city = stringPreferencesKey("city")
     private val spotifyClientId = stringPreferencesKey("spotify_client_id")
+    private val spotifyAccessToken = stringPreferencesKey("spotify_access_token")
+    private val spotifyTokenExpiresAt = longPreferencesKey("spotify_token_expires_at")
     private val themeMode = stringPreferencesKey("theme_mode")
     private val backgroundMode = stringPreferencesKey("background_mode")
     private val clockStyle = stringPreferencesKey("clock_style")
@@ -217,6 +222,8 @@ class UserPreferences(private val context: Context) {
             useCelsius = prefs[useCelsius] ?: true,
             city = prefs[city].orEmpty(),
             spotifyClientId = prefs[spotifyClientId].orEmpty(),
+            spotifyAccessToken = prefs[spotifyAccessToken].orEmpty(),
+            spotifyTokenExpiresAt = prefs[spotifyTokenExpiresAt] ?: 0L,
             themeMode = prefs[themeMode]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.MONET,
             backgroundMode = prefs[backgroundMode]?.let {
@@ -276,8 +283,23 @@ class UserPreferences(private val context: Context) {
     suspend fun setNightDim(value: Boolean) = context.dataStore.edit { it[nightDim] = value }
     suspend fun setUseCelsius(value: Boolean) = context.dataStore.edit { it[useCelsius] = value }
     suspend fun setCity(value: String) = context.dataStore.edit { it[city] = value }
-    suspend fun setSpotifyClientId(value: String) =
-        context.dataStore.edit { it[spotifyClientId] = value.trim() }
+    suspend fun setSpotifyClientId(value: String) = context.dataStore.edit {
+        val trimmed = value.trim()
+        if (it[spotifyClientId] != trimmed) {
+            it.remove(spotifyAccessToken)
+            it.remove(spotifyTokenExpiresAt)
+        }
+        it[spotifyClientId] = trimmed
+    }
+    suspend fun setSpotifyAccessToken(token: String, expiresAtEpochMs: Long) =
+        context.dataStore.edit {
+            it[spotifyAccessToken] = token
+            it[spotifyTokenExpiresAt] = expiresAtEpochMs
+        }
+    suspend fun clearSpotifyAccessToken() = context.dataStore.edit {
+        it.remove(spotifyAccessToken)
+        it.remove(spotifyTokenExpiresAt)
+    }
     suspend fun setThemeMode(value: ThemeMode) =
         context.dataStore.edit { it[themeMode] = value.name }
     suspend fun setBackgroundMode(value: BackgroundMode) =

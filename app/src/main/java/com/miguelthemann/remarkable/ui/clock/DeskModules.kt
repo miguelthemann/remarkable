@@ -198,6 +198,15 @@ private fun SpotifyStatusBody(
                 stringResource(R.string.spotify_need_client_id),
                 color = colors.onSurface,
             )
+            MusicStatus.NeedSpotifyAuth -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.spotify_need_auth),
+                    color = colors.onSurface,
+                )
+                Button(onClick = viewModel::authorizeSpotify) {
+                    Text(stringResource(R.string.spotify_authorize))
+                }
+            }
             MusicStatus.NeedLastFmSetup -> Text(
                 stringResource(R.string.lastfm_need_setup),
                 color = colors.onSurface,
@@ -215,8 +224,16 @@ private fun SpotifyStatusBody(
                 Text(stringResource(R.string.music_error), color = colors.onSurface)
                 Text(music.message, color = colors.onSurfaceVariant)
                 if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SPOTIFY) {
-                    Button(onClick = viewModel::connectSpotify) {
-                        Text(stringResource(R.string.spotify_connect))
+                    val needsAuth = com.miguelthemann.remarkable.spotify.SpotifyAuth
+                        .isAuthorizationRequired(music.message)
+                    if (needsAuth) {
+                        Button(onClick = viewModel::authorizeSpotify) {
+                            Text(stringResource(R.string.spotify_authorize))
+                        }
+                    } else {
+                        Button(onClick = viewModel::connectSpotify) {
+                            Text(stringResource(R.string.spotify_connect))
+                        }
                     }
                 }
             }

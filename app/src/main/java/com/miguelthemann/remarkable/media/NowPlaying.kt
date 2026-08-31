@@ -29,6 +29,7 @@ sealed interface MusicStatus {
     data object Loading : MusicStatus
     data object NeedNotificationAccess : MusicStatus
     data object NeedSpotifySetup : MusicStatus
+    data object NeedSpotifyAuth : MusicStatus
     data object NeedLastFmSetup : MusicStatus
     data object NothingPlaying : MusicStatus
     data class Ready(val track: NowPlayingTrack, val canControl: Boolean) : MusicStatus

@@ -7,6 +7,8 @@ package com.miguelthemann.remarkable.ui.clock
 import android.app.Application
 import android.location.Location
 import android.net.Uri
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.miguelthemann.remarkable.lastfm.LastFmClient
@@ -25,6 +27,8 @@ import com.miguelthemann.remarkable.prefs.ThemeMode
 import com.miguelthemann.remarkable.prefs.UserPreferences
 import com.miguelthemann.remarkable.prefs.UserSettings
 import com.miguelthemann.remarkable.prefs.WeatherEffect
+import com.miguelthemann.remarkable.spotify.SpotifyAuth
+import com.miguelthemann.remarkable.spotify.SpotifyAuthResult
 import com.miguelthemann.remarkable.spotify.SpotifyRemote
 import com.miguelthemann.remarkable.spotify.SpotifyStatus
 import com.miguelthemann.remarkable.update.AppUpdateChecker
@@ -34,9 +38,12 @@ import com.miguelthemann.remarkable.weather.WeatherSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -55,6 +62,7 @@ data class ClockUiState(
     val useCelsius: Boolean = true,
     val city: String = "",
     val spotifyClientId: String = "",
+    val spotifyAuthorized: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.MONET,
     val backgroundMode: BackgroundMode = BackgroundMode.WEATHER,
     val clockStyle: ClockStyle = ClockStyle.BOTH,
@@ -110,6 +118,9 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(ClockUiState())
     val uiState: StateFlow<ClockUiState> = _uiState.asStateFlow()
+
+    private val _spotifyAuthRequests = Channel<String>(Channel.CONFLATED)
+    val spotifyAuthRequests = _spotifyAuthRequests.receiveAsFlow()
 
     private var musicJob: Job? = null
     private var locationGranted = false
@@ -181,6 +192,7 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                 useCelsius = settings.useCelsius,
                 city = settings.city,
                 spotifyClientId = settings.spotifyClientId,
+                spotifyAuthorized = isSpotifyAuthorized(settings),
                 themeMode = settings.themeMode,
                 backgroundMode = settings.backgroundMode,
                 clockStyle = settings.clockStyle,
@@ -222,7 +234,7 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         musicJob = viewModelScope.launch {
             when (settings.musicSource) {
                 MusicSource.SYSTEM -> collectSystemMedia(settings)
-                MusicSource.SPOTIFY -> collectSpotify(settings.spotifyClientId)
+                MusicSource.SPOTIFY -> collectSpotify(settings.spotifyClientId, settings)
                 MusicSource.LASTFM -> collectLastFm(settings)
             }
         }
@@ -242,9 +254,13 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun collectSpotify(clientId: String) {
+    private suspend fun collectSpotify(clientId: String, settings: UserSettings) {
         if (clientId.isBlank()) {
             _uiState.update { it.copy(music = MusicStatus.NeedSpotifySetup) }
+            return
+        }
+        if (!isSpotifyAuthorized(settings)) {
+            _uiState.update { it.copy(music = MusicStatus.NeedSpotifyAuth) }
             return
         }
         spotifyRemote.connect(clientId).collect { status ->
@@ -254,7 +270,14 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                         SpotifyStatus.NeedClientId -> MusicStatus.NeedSpotifySetup
                         SpotifyStatus.MissingApp -> MusicStatus.Failed("Spotify app missing")
                         SpotifyStatus.Connecting, SpotifyStatus.Idle -> MusicStatus.Loading
-                        is SpotifyStatus.Failed -> MusicStatus.Failed(status.message)
+                        is SpotifyStatus.Failed -> {
+                            if (SpotifyAuth.isAuthorizationRequired(status.message)) {
+                                viewModelScope.launch { preferences.clearSpotifyAccessToken() }
+                                MusicStatus.NeedSpotifyAuth
+                            } else {
+                                MusicStatus.Failed(status.message)
+                            }
+                        }
                         is SpotifyStatus.Connected -> {
                             val np = status.nowPlaying
                             if (np == null) MusicStatus.NothingPlaying
@@ -417,9 +440,46 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         musicJob?.cancel()
         spotifyRemote.disconnect()
         musicJob = viewModelScope.launch {
-            collectSpotify(_uiState.value.spotifyClientId)
+            val settings = preferences.settings.first()
+            collectSpotify(settings.spotifyClientId, settings)
         }
     }
+
+    fun authorizeSpotify() {
+        val clientId = _uiState.value.spotifyClientId
+        if (clientId.isBlank()) {
+            _uiState.update { it.copy(music = MusicStatus.NeedSpotifySetup) }
+            return
+        }
+        viewModelScope.launch { _spotifyAuthRequests.send(clientId) }
+    }
+
+    fun handleSpotifyAuthActivityResult(resultCode: Int, data: Intent?) {
+        SpotifyAuth.parseActivityResult(resultCode, data)
+            .fold(::onSpotifyAuthorized, ::onSpotifyAuthFailed)
+    }
+
+    fun handleSpotifyRedirect(uri: Uri) {
+        SpotifyAuth.parseRedirect(uri)
+            ?.fold(::onSpotifyAuthorized, ::onSpotifyAuthFailed)
+    }
+
+    private fun onSpotifyAuthorized(result: SpotifyAuthResult) {
+        viewModelScope.launch {
+            preferences.setSpotifyAccessToken(result.accessToken, result.expiresAtEpochMs)
+            connectSpotify()
+        }
+    }
+
+    private fun onSpotifyAuthFailed(error: Throwable) {
+        _uiState.update {
+            it.copy(music = MusicStatus.Failed(error.message ?: "Spotify authorization failed"))
+        }
+    }
+
+    private fun isSpotifyAuthorized(settings: UserSettings): Boolean =
+        settings.spotifyAccessToken.isNotBlank() &&
+            SpotifyAuth.isTokenValid(settings.spotifyTokenExpiresAt)
 
     fun playPause() {
         when (_uiState.value.musicSource) {

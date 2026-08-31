@@ -4,6 +4,8 @@
  */
 package com.miguelthemann.remarkable
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -12,6 +14,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -19,16 +23,26 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.miguelthemann.remarkable.ui.RemarkableNav
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
+import com.miguelthemann.remarkable.ui.spotify.SpotifyAuthHandler
 import com.miguelthemann.remarkable.ui.theme.RemarkableTheme
 
 class MainActivity : ComponentActivity() {
+    private var spotifyRedirectUri by mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        spotifyRedirectUri = intent?.data
         enableEdgeToEdge()
         hideSystemBars()
         setContent {
             val viewModel: ClockViewModel = viewModel()
             val state by viewModel.uiState.collectAsStateWithLifecycle()
+            val redirectUri = spotifyRedirectUri
+
+            SpotifyAuthHandler(viewModel)
+            LaunchedEffect(redirectUri) {
+                redirectUri?.let { viewModel.handleSpotifyRedirect(it) }
+            }
 
             LaunchedEffect(state.keepAwake, state.nightDim) {
                 if (state.keepAwake) {
@@ -50,6 +64,12 @@ class MainActivity : ComponentActivity() {
                 RemarkableNav(viewModel = viewModel)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        spotifyRedirectUri = intent.data
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
