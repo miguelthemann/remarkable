@@ -170,32 +170,44 @@ fun SettingsScreen(
                     )
                 }
             }
-            Text(
-                text = stringResource(R.string.settings_accent),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                AccentPreset.entries.forEach { preset ->
-                    val color = Color.fromArgbLong(preset.argb)
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(color)
-                            .border(
-                                width = if (state.accentArgb == preset.argb) 3.dp else 0.dp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                shape = CircleShape,
-                            )
-                            .clickable { viewModel.setAccentArgb(preset.argb) },
-                    )
+            if (state.themeMode != ThemeMode.MONET) {
+                Text(
+                    text = stringResource(R.string.settings_accent),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    AccentPreset.entries.forEach { preset ->
+                        val color = Color.fromArgbLong(preset.argb)
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(
+                                    width = if (state.accentArgb == preset.argb) 3.dp else 0.dp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    shape = CircleShape,
+                                )
+                                .clickable { viewModel.setAccentArgb(preset.argb) },
+                        )
+                    }
                 }
+                Text(
+                    text = stringResource(R.string.settings_accent_custom_help),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                SolidColorPicker(
+                    argb = state.accentArgb,
+                    onColorChange = viewModel::setAccentArgb,
+                )
+                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(8.dp))
             Text(
                 text = stringResource(R.string.settings_background),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -362,10 +374,24 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SectionTitle(stringResource(R.string.settings_music))
             Text(
+                text = stringResource(R.string.settings_spotify_style),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            ChipRow {
+                SpotifyModuleStyle.entries.forEach { style ->
+                    FilterChip(
+                        selected = state.spotifyStyle == style,
+                        onClick = { viewModel.setSpotifyStyle(style) },
+                        label = { Text(spotifyStyleLabel(style)) },
+                    )
+                }
+            }
+            Text(
                 text = stringResource(R.string.settings_music_source_help),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             Column(
                 modifier = Modifier
@@ -507,20 +533,6 @@ fun SettingsScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
-                }
-            }
-            Text(
-                text = stringResource(R.string.settings_spotify_style),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            ChipRow {
-                SpotifyModuleStyle.entries.forEach { style ->
-                    FilterChip(
-                        selected = state.spotifyStyle == style,
-                        onClick = { viewModel.setSpotifyStyle(style) },
-                        label = { Text(spotifyStyleLabel(style)) },
-                    )
                 }
             }
             ToggleRow(stringResource(R.string.settings_show_spotify_icon), state.showSpotifyIcon, viewModel::setShowSpotifyIcon)

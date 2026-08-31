@@ -29,7 +29,7 @@
     <string name="lastfm_need_setup">Add your Last.fm API key and username in Settings.</string>
     <string name="settings_music">Music</string>
     <string name="settings_music_source">Music source</string>
-    <string name="settings_music_source_help">Pick one source. The clock shows only that source — device, Spotify, or Last.fm.</string>
+    <string name="settings_music_source_help">Choose your music service.</string>
     <string name="music_source_system">Device (Android)</string>
     <string name="music_source_spotify">Spotify</string>
     <string name="music_source_lastfm">Last.fm</string>
@@ -58,7 +58,8 @@
     <string name="settings_city_placeholder">Lisbon</string>
     <string name="settings_spotify">Spotify</string>
     <string name="settings_client_id">Client ID</string>
-    <string name="settings_client_id_help">Create an app at developer.spotify.com. Package: com.miguelthemann.remarkable. Redirect URI: remarkable://callback</string>
+    <string name="settings_client_id_help">Create an app at developer.spotify.com/dashboard. In the portal set Android package name com.miguelthemann.remarkable, redirect URI remarkable://callback, and add your debug or release SHA-1 fingerprint (keytool -list -v -keystore …).</string>
+    <string name="settings_accent_custom_help">Pick a preset, drag on the colour wheel, or type a HEX code.</string>
     <string name="settings_about">About</string>
     <string name="settings_danger_zone">Reset</string>
     <string name="settings_reset_all">Reset all settings</string>

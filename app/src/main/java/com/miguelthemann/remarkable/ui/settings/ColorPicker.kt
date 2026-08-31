@@ -4,9 +4,11 @@
  */
 package com.miguelthemann.remarkable.ui.settings
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +26,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,21 +37,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.miguelthemann.remarkable.R
-import com.miguelthemann.remarkable.ui.theme.asPercentLabel
 import com.miguelthemann.remarkable.ui.theme.fromArgbLong
 import com.miguelthemann.remarkable.ui.theme.hsvToColor
 import com.miguelthemann.remarkable.ui.theme.parseHexColor
 import com.miguelthemann.remarkable.ui.theme.toArgbLong
 import com.miguelthemann.remarkable.ui.theme.toHexRgb
 import com.miguelthemann.remarkable.ui.theme.toHsv
-import kotlin.math.roundToInt
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.sin
 
 @Composable
 fun SolidColorPicker(
@@ -136,34 +145,137 @@ fun SolidColorPicker(
                 keyboardActions = KeyboardActions(onDone = { commitHex() }),
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.settings_color_hue, hue.roundToInt()))
-        Slider(
-            value = hue,
-            onValueChange = {
-                hue = it
-                commitHsv(h = it)
-            },
-            valueRange = 0f..360f,
-        )
-        Text(stringResource(R.string.settings_color_saturation, sat.asPercentLabel()))
-        Slider(
-            value = sat,
-            onValueChange = {
-                sat = it
-                commitHsv(s = it)
-            },
-            valueRange = 0f..1f,
-        )
-        Text(stringResource(R.string.settings_color_value, value.asPercentLabel()))
-        Slider(
+        Spacer(Modifier.height(12.dp))
+        SaturationValuePlane(
+            hue = hue,
+            saturation = sat,
             value = value,
-            onValueChange = {
-                value = it
-                commitHsv(v = it)
-            },
-            valueRange = 0f..1f,
+            onChange = { s, v -> commitHsv(s = s, v = v) },
         )
+        Spacer(Modifier.height(12.dp))
+        HueWheel(
+            hue = hue,
+            onHueChange = { commitHsv(h = it) },
+        )
+    }
+}
+
+@Composable
+private fun SaturationValuePlane(
+    hue: Float,
+    saturation: Float,
+    value: Float,
+    onChange: (Float, Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val pure = hsvToColor(hue, 1f, 1f)
+    val selector = MaterialTheme.colorScheme.onSurface
+    val corner = 16.dp
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(148.dp)
+            .clip(RoundedCornerShape(corner))
+            .pointerInput(hue) {
+                fun pick(offset: Offset) {
+                    val s = (offset.x / size.width).coerceIn(0f, 1f)
+                    val v = (1f - offset.y / size.height).coerceIn(0f, 1f)
+                    onChange(s, v)
+                }
+                detectDragGestures(
+                    onDragStart = { pick(it) },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        pick(change.position)
+                    },
+                )
+            },
+    ) {
+        val radius = CornerRadius(corner.toPx())
+        drawRoundRect(
+            brush = Brush.horizontalGradient(listOf(Color.White, pure)),
+            cornerRadius = radius,
+        )
+        drawRoundRect(
+            brush = Brush.verticalGradient(listOf(Color.Transparent, Color.Black)),
+            cornerRadius = radius,
+        )
+        val cx = saturation * size.width
+        val cy = (1f - value) * size.height
+        drawCircle(Color.White, 10f, Offset(cx, cy), style = Stroke(3f))
+        drawCircle(selector, 7f, Offset(cx, cy), style = Stroke(2f))
+    }
+}
+
+@Composable
+private fun HueWheel(
+    hue: Float,
+    onHueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val surface = MaterialTheme.colorScheme.surface
+    val wheelSize = 200.dp
+    val density = LocalDensity.current
+
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(
+            modifier = Modifier
+                .size(wheelSize)
+                .pointerInput(Unit) {
+                    val wheelPx = with(density) { wheelSize.toPx() }
+                    val innerR = wheelPx * 0.36f
+                    val cx = wheelPx / 2f
+                    val cy = wheelPx / 2f
+
+                    fun pick(offset: Offset) {
+                        val dx = offset.x - cx
+                        val dy = offset.y - cy
+                        if (hypot(dx, dy) < innerR) return
+                        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                        onHueChange((angle + 360f) % 360f)
+                    }
+
+                    detectDragGestures(
+                        onDragStart = { pick(it) },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            pick(change.position)
+                        },
+                    )
+                },
+        ) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val outerR = size.minDimension / 2f
+            val innerR = outerR * 0.72f
+
+            drawCircle(
+                brush = Brush.sweepGradient(
+                    0f to Color(0xFFFF0000),
+                    60f to Color(0xFFFFFF00),
+                    120f to Color(0xFF00FF00),
+                    180f to Color(0xFF00FFFF),
+                    240f to Color(0xFF0000FF),
+                    300f to Color(0xFFFF00FF),
+                    360f to Color(0xFFFF0000),
+                    center = center,
+                ),
+                radius = outerR,
+                center = center,
+            )
+            drawCircle(color = surface, radius = innerR, center = center)
+
+            val angleRad = Math.toRadians(hue.toDouble())
+            val markerR = (outerR + innerR) / 2f
+            val mx = center.x + cos(angleRad).toFloat() * markerR
+            val my = center.y + sin(angleRad).toFloat() * markerR
+            drawCircle(Color.White, 11f, Offset(mx, my))
+            drawCircle(hsvToColor(hue, 1f, 1f), 8f, Offset(mx, my))
+            drawCircle(Color.Black.copy(alpha = 0.35f), 11f, Offset(mx, my), style = Stroke(2f))
+        }
     }
 }
 
