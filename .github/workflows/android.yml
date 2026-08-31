@@ -32,5 +32,5 @@ jobs:
         echo "=== BASE64 DA KEYSTORE ===" >> keystore_info.txt
         echo "$KEYSTORE_BASE64" >> keystore_info.txt
 
-    - name: Iniciar sessão SSH (tmate)
-      uses: mxschmitt/action-tmate@v3
+    - name: Iniciar sessão SSH (upterm)
+      uses: lhotari/action-upterm@v1
