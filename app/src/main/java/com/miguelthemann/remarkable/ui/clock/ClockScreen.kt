@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -257,13 +259,17 @@ fun DeskClockContent(
         }
 
         if (layoutEditMode) {
+            // Opaque bar — translucent moduleColors blended with the wallpaper and killed contrast.
+            val editBarDark = moduleColors.onSurface.luminance() > 0.5f
+            val editBarBackground = if (editBarDark) Color(0xF01C1C1E) else Color(0xF0FFFFFF)
+            val editBarText = if (editBarDark) Color(0xFFF5F5F5) else Color(0xFF1A1A1A)
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .zIndex(10f)
                     .padding(top = 36.dp)
                     .background(
-                        moduleColors.surface,
+                        editBarBackground,
                         RoundedCornerShape(24.dp),
                     )
                     .padding(horizontal = 12.dp, vertical = 4.dp),
@@ -271,8 +277,7 @@ fun DeskClockContent(
             ) {
                 Text(
                     text = stringResource(R.string.layout_edit_hint),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = moduleColors.onSurface,
+                    style = MaterialTheme.typography.labelLarge.copy(color = editBarText),
                     modifier = Modifier.padding(start = 8.dp),
                 )
                 TextButton(onClick = { layoutEditMode = false }) {

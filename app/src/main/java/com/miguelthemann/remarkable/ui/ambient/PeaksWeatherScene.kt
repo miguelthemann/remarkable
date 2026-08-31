@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -20,11 +21,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import com.miguelthemann.remarkable.prefs.WeatherEffect
 import com.miguelthemann.remarkable.time.isNightHour
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 /**
  * Samsung Peaks–inspired weather scene.
@@ -62,6 +65,26 @@ fun PeaksWeatherScene(
     val clouds = remember { List(5) { CloudSeed(it) } }
     val drops = remember { List(36) { ParticleSeed(it * 17) } }
     val flakes = remember { List(28) { ParticleSeed(it * 31 + 3) } }
+    var lightningStrike by remember { mutableStateOf<LightningStrike?>(null) }
+
+    LaunchedEffect(effect) {
+        if (effect != WeatherEffect.THUNDER) {
+            lightningStrike = null
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(Random.nextLong(900, 5_500))
+            lightningStrike = randomLightningStrike()
+            delay(Random.nextLong(70, 200))
+            lightningStrike = null
+            if (Random.nextFloat() < 0.38f) {
+                delay(Random.nextLong(35, 110))
+                lightningStrike = randomLightningStrike()
+                delay(Random.nextLong(50, 160))
+                lightningStrike = null
+            }
+        }
+    }
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val t = timeSec
@@ -85,7 +108,9 @@ fun PeaksWeatherScene(
             WeatherEffect.SNOW -> drawSnow(flakes, t)
             else -> Unit
         }
-        if (effect == WeatherEffect.THUNDER) drawLightning(t)
+        if (effect == WeatherEffect.THUNDER) {
+            lightningStrike?.let { drawLightning(it) }
+        }
         if (effect == WeatherEffect.FOG) drawFog(t)
     }
 }
@@ -221,17 +246,77 @@ private fun DrawScope.drawSnow(flakes: List<ParticleSeed>, t: Float) {
     }
 }
 
-private fun DrawScope.drawLightning(t: Float) {
-    val flash = sin(t * 3.2f)
-    if (flash > 0.93f) {
-        drawRect(Color.White.copy(alpha = ((flash - 0.93f) * 5f).coerceIn(0f, 0.35f)))
-        val path = Path().apply {
-            moveTo(size.width * 0.55f, 0f)
-            lineTo(size.width * 0.48f, size.height * 0.28f)
-            lineTo(size.width * 0.58f, size.height * 0.28f)
-            lineTo(size.width * 0.42f, size.height * 0.62f)
+private data class LightningStrike(
+    val bolts: List<List<Pair<Float, Float>>>,
+    val flashAlpha: Float,
+)
+
+private fun randomLightningStrike(): LightningStrike {
+    val rng = Random.Default
+    val main = buildLightningBolt(
+        rng = rng,
+        startX = 0.12f + rng.nextFloat() * 0.76f,
+        startY = 0f,
+        depth = 0.45f + rng.nextFloat() * 0.28f,
+    )
+    val branches = buildList {
+        if (rng.nextFloat() < 0.42f && main.size > 3) {
+            val fork = main[rng.nextInt(1, main.size - 1)]
+            add(
+                buildLightningBolt(
+                    rng = rng,
+                    startX = fork.first,
+                    startY = fork.second,
+                    depth = 0.1f + rng.nextFloat() * 0.2f,
+                ),
+            )
         }
-        drawPath(path, Color(0xFFE3F2FD).copy(alpha = 0.8f))
+    }
+    return LightningStrike(
+        bolts = listOf(main) + branches,
+        flashAlpha = 0.18f + rng.nextFloat() * 0.22f,
+    )
+}
+
+private fun buildLightningBolt(
+    rng: Random,
+    startX: Float,
+    startY: Float,
+    depth: Float,
+): List<Pair<Float, Float>> {
+    val segments = mutableListOf(startX to startY)
+    var x = startX
+    var y = startY
+    val targetY = startY + depth
+    while (y < targetY) {
+        y += 0.06f + rng.nextFloat() * 0.11f
+        x += (rng.nextFloat() - 0.5f) * 0.16f
+        x = x.coerceIn(0.08f, 0.92f)
+        segments += x to y.coerceAtMost(targetY)
+    }
+    return segments
+}
+
+private fun DrawScope.drawLightning(strike: LightningStrike) {
+    drawRect(Color.White.copy(alpha = strike.flashAlpha))
+    strike.bolts.forEach { bolt ->
+        if (bolt.size < 2) return@forEach
+        val path = Path().apply {
+            moveTo(bolt.first().first * size.width, bolt.first().second * size.height)
+            bolt.drop(1).forEach { (xf, yf) ->
+                lineTo(xf * size.width, yf * size.height)
+            }
+        }
+        drawPath(
+            path = path,
+            color = Color(0xFFE8F4FD).copy(alpha = 0.92f),
+            style = Stroke(width = 2.8f, cap = StrokeCap.Round),
+        )
+        drawPath(
+            path = path,
+            color = Color.White.copy(alpha = 0.55f),
+            style = Stroke(width = 1.1f, cap = StrokeCap.Round),
+        )
     }
 }
 
