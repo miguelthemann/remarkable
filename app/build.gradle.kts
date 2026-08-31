@@ -19,8 +19,14 @@ android {
         minSdk = 26
         targetSdk = 36
         maxSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        val appVersionCode = (property("REMARKABLE_VERSION_CODE") as String).toInt()
+        val appVersionName = property("REMARKABLE_VERSION_NAME") as String
+        val appCodename = property("REMARKABLE_VERSION_CODENAME") as String
+        versionCode = appVersionCode
+        // Shown by the system / stores: "1.0.0 Quiet Peak"
+        versionName = "$appVersionName $appCodename"
+        buildConfigField("String", "VERSION_NUMBER", "\"$appVersionName\"")
+        buildConfigField("String", "VERSION_CODENAME", "\"$appCodename\"")
         vectorDrawables.useSupportLibrary = true
         resourceConfigurations += listOf("en", "pt-rPT")
         manifestPlaceholders["redirectSchemeName"] = "remarkable"

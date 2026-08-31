@@ -27,6 +27,8 @@ import com.miguelthemann.remarkable.prefs.UserSettings
 import com.miguelthemann.remarkable.prefs.WeatherEffect
 import com.miguelthemann.remarkable.spotify.SpotifyRemote
 import com.miguelthemann.remarkable.spotify.SpotifyStatus
+import com.miguelthemann.remarkable.update.AppUpdateChecker
+import com.miguelthemann.remarkable.update.AppUpdateStatus
 import com.miguelthemann.remarkable.weather.WeatherRepository
 import com.miguelthemann.remarkable.weather.WeatherSnapshot
 import kotlinx.coroutines.Dispatchers
@@ -88,6 +90,7 @@ data class ClockUiState(
     val weatherMessage: WeatherMessage = WeatherMessage.Idle,
     val music: MusicStatus = MusicStatus.Idle,
     val lastFmLoginMessage: String? = null,
+    val appUpdate: AppUpdateStatus = AppUpdateStatus.Idle,
 )
 
 sealed interface WeatherMessage {
@@ -103,6 +106,7 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     private val deviceLocation = DeviceLocation(application)
     private val spotifyRemote = SpotifyRemote(application)
     private val lastFm = LastFmClient()
+    private val updateChecker = AppUpdateChecker()
 
     private val _uiState = MutableStateFlow(ClockUiState())
     val uiState: StateFlow<ClockUiState> = _uiState.asStateFlow()
@@ -147,6 +151,21 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                 delay(15 * 60 * 1000L)
                 refreshWeather()
             }
+        }
+        checkForAppUpdate()
+        viewModelScope.launch {
+            while (isActive) {
+                delay(6 * 60 * 60 * 1000L)
+                checkForAppUpdate()
+            }
+        }
+    }
+
+    fun checkForAppUpdate() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(appUpdate = AppUpdateStatus.Checking) }
+            val status = withContext(Dispatchers.IO) { updateChecker.check() }
+            _uiState.update { it.copy(appUpdate = status) }
         }
     }
 

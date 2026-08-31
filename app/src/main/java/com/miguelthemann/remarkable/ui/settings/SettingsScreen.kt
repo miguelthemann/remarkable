@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.miguelthemann.remarkable.BuildConfig
 import com.miguelthemann.remarkable.R
 import com.miguelthemann.remarkable.media.MusicSource
 import com.miguelthemann.remarkable.prefs.AccentPreset
@@ -50,6 +51,7 @@ import com.miguelthemann.remarkable.prefs.ThemeMode
 import com.miguelthemann.remarkable.prefs.WeatherEffect
 import com.miguelthemann.remarkable.ui.clock.ClockUiState
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
+import com.miguelthemann.remarkable.update.AppUpdateStatus
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
 
@@ -68,6 +70,10 @@ fun SettingsScreen(
     val context = LocalContext.current
     var page by remember { mutableStateOf(SettingsPage.Hub) }
     var resetStep by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        viewModel.checkForAppUpdate()
+    }
 
     LaunchedEffect(state.overlayEnabled) {
         val runningIntent = Intent(context, com.miguelthemann.remarkable.overlay.ClockOverlayService::class.java)
@@ -120,7 +126,13 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             when (page) {
-                SettingsPage.Hub -> SettingsHub(state = state, onOpen = { page = it })
+                SettingsPage.Hub -> SettingsHub(
+                    state = state,
+                    onOpen = { page = it },
+                    onOpenUpdate = { url ->
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    },
+                )
                 SettingsPage.Appearance -> AppearanceSettings(state, viewModel)
                 SettingsPage.Clock -> ClockSettings(state, viewModel, context)
                 SettingsPage.Music -> MusicSettings(state, viewModel, context)
@@ -128,6 +140,11 @@ fun SettingsScreen(
                 SettingsPage.BurnIn -> BurnInSettings(state, viewModel)
                 SettingsPage.System -> SystemSettings(state, viewModel, context)
                 SettingsPage.About -> AboutSettings(
+                    state = state,
+                    onCheckUpdate = viewModel::checkForAppUpdate,
+                    onOpenUpdate = { url ->
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    },
                     onReset = { resetStep = 1 },
                     onGitHub = {
                         context.startActivity(
@@ -179,8 +196,23 @@ private fun BackHandlerCompat(enabled: Boolean, onBack: () -> Unit) {
 private fun SettingsHub(
     state: ClockUiState,
     onOpen: (SettingsPage) -> Unit,
+    onOpenUpdate: (String) -> Unit,
 ) {
     Column {
+        val update = state.appUpdate
+        if (update is AppUpdateStatus.Available) {
+            SettingsSectionLabel(stringResource(R.string.settings_update_available))
+            SettingsNavRow(
+                title = stringResource(
+                    R.string.settings_update_title,
+                    update.info.versionName,
+                    update.info.codename,
+                ),
+                subtitle = stringResource(R.string.settings_update_tap_download),
+                onClick = { onOpenUpdate(update.info.htmlUrl) },
+            )
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        }
         SettingsNavRow(
             title = stringResource(R.string.settings_appearance),
             subtitle = "${settingsThemeLabel(state.themeMode)} · ${settingsBackgroundLabel(state.backgroundMode)}",
@@ -626,8 +658,60 @@ private fun SystemSettings(state: ClockUiState, viewModel: ClockViewModel, conte
 }
 
 @Composable
-private fun AboutSettings(onReset: () -> Unit, onGitHub: () -> Unit) {
+private fun AboutSettings(
+    state: ClockUiState,
+    onCheckUpdate: () -> Unit,
+    onOpenUpdate: (String) -> Unit,
+    onReset: () -> Unit,
+    onGitHub: () -> Unit,
+) {
     Column {
+        Text(
+            text = stringResource(R.string.settings_version, BuildConfig.VERSION_NUMBER),
+            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.settings_version_codename, BuildConfig.VERSION_CODENAME),
+            style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+        )
+        SettingsHint(stringResource(R.string.settings_version_code, BuildConfig.VERSION_CODE))
+
+        when (val update = state.appUpdate) {
+            AppUpdateStatus.Idle, AppUpdateStatus.Checking -> {
+                SettingsHint(stringResource(R.string.settings_update_checking))
+            }
+            AppUpdateStatus.UpToDate -> {
+                SettingsHint(stringResource(R.string.settings_update_up_to_date))
+            }
+            is AppUpdateStatus.Available -> {
+                SettingsSectionLabel(stringResource(R.string.settings_update_available))
+                SettingsHint(
+                    stringResource(
+                        R.string.settings_update_details,
+                        update.info.versionName,
+                        update.info.codename,
+                        update.info.versionCode,
+                    ),
+                )
+                Button(
+                    onClick = { onOpenUpdate(update.info.htmlUrl) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    Text(stringResource(R.string.settings_update_download))
+                }
+            }
+            is AppUpdateStatus.Failed -> {
+                SettingsHint(stringResource(R.string.settings_update_failed))
+            }
+        }
+        TextButton(onClick = onCheckUpdate, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text(stringResource(R.string.settings_update_check_now))
+        }
+
         SettingsHint(stringResource(R.string.settings_license))
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
         SettingsSectionLabel(stringResource(R.string.settings_danger_zone))
