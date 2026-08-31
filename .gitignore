@@ -17,3 +17,4 @@ keystore.properties
 *.jks
 *.keystore
 !debug.keystore
+compile-out.txt

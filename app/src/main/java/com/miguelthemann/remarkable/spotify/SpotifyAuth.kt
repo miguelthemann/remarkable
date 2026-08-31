@@ -59,13 +59,13 @@ object SpotifyAuth {
         expiresAtEpochMs > System.currentTimeMillis() + 60_000L
 
     private fun parseResponse(response: AuthorizationResponse): Result<SpotifyAuthResult> {
-        return when (response.type) {
+        return when (response.getType()) {
             AuthorizationResponse.Type.TOKEN -> {
-                val token = response.accessToken
+                val token = response.getAccessToken()
                 if (token.isNullOrBlank()) {
                     Result.failure(IllegalStateException("Spotify returned an empty token"))
                 } else {
-                    val expiresInSec = response.expiresIn.coerceAtLeast(60)
+                    val expiresInSec = response.getExpiresIn().coerceAtLeast(60)
                     Result.success(
                         SpotifyAuthResult(
                             accessToken = token,
@@ -75,7 +75,7 @@ object SpotifyAuth {
                 }
             }
             AuthorizationResponse.Type.ERROR -> {
-                val detail = response.error?.takeIf { it.isNotBlank() }
+                val detail = response.getError()?.takeIf { it.isNotBlank() }
                     ?: "Spotify authorization failed"
                 Result.failure(IllegalStateException(detail))
             }

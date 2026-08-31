@@ -5,9 +5,8 @@
 package com.miguelthemann.remarkable.ui.clock
 
 import android.app.Application
-import android.location.Location
-import android.net.Uri
 import android.content.Intent
+import android.location.Location
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope

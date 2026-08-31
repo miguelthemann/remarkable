@@ -17,7 +17,7 @@ import com.miguelthemann.remarkable.ui.clock.ClockViewModel
 @Composable
 fun SpotifyAuthHandler(viewModel: ClockViewModel) {
     val context = LocalContext.current
-    val activity = context as? ComponentActivity ?: return
+    val activity = context as? ComponentActivity
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -26,8 +26,9 @@ fun SpotifyAuthHandler(viewModel: ClockViewModel) {
     }
 
     LaunchedEffect(activity) {
+        val host = activity ?: return@LaunchedEffect
         viewModel.spotifyAuthRequests.collect { clientId ->
-            launcher.launch(SpotifyAuth.createLoginIntent(activity, clientId))
+            launcher.launch(SpotifyAuth.createLoginIntent(host, clientId))
         }
     }
 }
