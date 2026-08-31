@@ -1,0 +1,4 @@
+-keep class com.spotify.** { *; }
+-dontwarn com.spotify.**
+-keepattributes *Annotation*, InnerClasses, Signature
+-keep class com.miguelthemann.remarkable.weather.** { *; }

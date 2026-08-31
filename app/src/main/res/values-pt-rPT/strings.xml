@@ -1,0 +1,52 @@
+<!--
+  Copyright (c) 2026 Miguel Guerra
+  SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="app_name">Remarkable</string>
+    <string name="settings">Definições</string>
+    <string name="back">Voltar</string>
+    <string name="clock_content_description">Hora atual %1$s</string>
+    <string name="weather_title">Meteorologia</string>
+    <string name="weather_attribution">Dados meteorológicos por Open-Meteo.com (CC BY 4.0)</string>
+    <string name="weather_unavailable">Meteorologia indisponível</string>
+    <string name="weather_permission">Permite a localização para o tempo local, ou define uma cidade nas Definições.</string>
+    <string name="grant_location">Usar localização</string>
+    <string name="humidity">Humidade %1$d%%</string>
+    <string name="wind">Vento %1$s</string>
+    <string name="spotify_title">Spotify</string>
+    <string name="spotify_idle">Nada a reproduzir</string>
+    <string name="spotify_connect">Ligar Spotify</string>
+    <string name="spotify_not_installed">Instala a aplicação Spotify para controlar a reprodução.</string>
+    <string name="spotify_need_client_id">Adiciona o Client ID do Spotify nas Definições.</string>
+    <string name="spotify_error">Não foi possível ligar ao Spotify</string>
+    <string name="play">Reproduzir</string>
+    <string name="pause">Pausa</string>
+    <string name="skip_next">Seguinte</string>
+    <string name="skip_previous">Anterior</string>
+    <string name="settings_clock">Relógio</string>
+    <string name="settings_use_24h">Formato 24 horas</string>
+    <string name="settings_show_seconds">Mostrar segundos</string>
+    <string name="settings_keep_awake">Manter ecrã ligado</string>
+    <string name="settings_night_dim">Modo noturno (ecrã ténue)</string>
+    <string name="settings_weather">Meteorologia</string>
+    <string name="settings_use_celsius">Celsius</string>
+    <string name="settings_city">Cidade (opcional)</string>
+    <string name="settings_city_placeholder">Lisboa</string>
+    <string name="settings_spotify">Spotify</string>
+    <string name="settings_client_id">Client ID</string>
+    <string name="settings_client_id_help">Cria uma app em developer.spotify.com. Pacote: com.miguelthemann.remarkable. URI de redirecionamento: remarkable://callback</string>
+    <string name="settings_about">Acerca</string>
+    <string name="settings_license">O Remarkable está sob licença MIT. Os avisos de terceiros estão em NOTICE.</string>
+    <string name="weather_clear">Céu limpo</string>
+    <string name="weather_mainly_clear">Céu pouco nublado</string>
+    <string name="weather_partly_cloudy">Parcialmente nublado</string>
+    <string name="weather_overcast">Encoberto</string>
+    <string name="weather_fog">Nevoeiro</string>
+    <string name="weather_drizzle">Chuvisco</string>
+    <string name="weather_rain">Chuva</string>
+    <string name="weather_snow">Neve</string>
+    <string name="weather_showers">Aguaceiros</string>
+    <string name="weather_thunder">Trovoada</string>
+    <string name="weather_unknown">Desconhecido</string>
+</resources>

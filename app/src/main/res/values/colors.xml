@@ -1,0 +1,8 @@
+<!--
+  Copyright (c) 2026 Miguel Guerra
+  SPDX-License-Identifier: MIT
+-->
+<resources>
+    <color name="seed">#006A6A</color>
+    <color name="ic_launcher_bg">#004F4F</color>
+</resources>

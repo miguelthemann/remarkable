@@ -1,0 +1,2 @@
+# Copy to local.properties (not committed) and set the SDK path on this machine.
+sdk.dir=/home/<user>/Android/Sdk

@@ -1,0 +1,55 @@
+Remarkable
+Copyright (c) 2026 Miguel Guerra
+
+Licensed under the MIT License. See the file LICENSE in this repository.
+
+The MIT License applies to original source code, resources, and documentation
+in this repository. It does not apply to third-party libraries downloaded at
+build time, nor to weather data fetched at runtime.
+
+Third-party software (resolved by Gradle, not vendored here)
+-------------------------------------------------------------
+
+AndroidX, Jetpack Compose, DataStore, Navigation
+  Copyright The Android Open Source Project
+  Apache License 2.0
+  https://developer.android.com/jetpack/androidx
+
+Kotlin, kotlinx.coroutines, kotlinx.serialization
+  Copyright JetBrains s.r.o. and contributors
+  Apache License 2.0
+  https://github.com/JetBrains/kotlin
+
+OkHttp
+  Copyright Square, Inc.
+  Apache License 2.0
+  https://github.com/square/okhttp
+
+Spotify Android SDK (Auth and App Remote)
+  Copyright Spotify AB
+  Proprietary — licensed under Spotify’s developer terms
+  https://developer.spotify.com/documentation/android
+  https://github.com/spotify/android-sdk
+
+  The Spotify SDK is not part of this MIT-licensed work. It is requested from
+  Maven Central when you build the app. Using Spotify features also requires
+  a Spotify developer application, the Spotify app on the device, and
+  compliance with Spotify’s Developer Terms of Service and Design Guidelines.
+
+Gradle Wrapper scripts (if generated in this tree)
+  Copyright Gradle Inc.
+  Apache License 2.0
+  https://gradle.org
+
+Runtime data
+------------
+
+Weather forecasts: Open-Meteo (https://open-meteo.com), CC BY 4.0.
+Attribution is shown in the app UI.
+
+Material Icons used from androidx.compose.material:material-icons-extended
+are Apache License 2.0.
+
+Apache License 2.0 is compatible with distributing a combined Android
+application alongside this project’s MIT-licensed source. Redistribute
+third-party binaries only under their own licenses.
