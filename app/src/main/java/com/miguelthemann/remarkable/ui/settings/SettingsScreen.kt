@@ -64,7 +64,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onFactoryResetDone: () -> Unit = {},
 ) {
-    val state by collectAsStateWithLifecycle(viewModel.uiState)
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var page by remember { mutableStateOf(SettingsPage.Hub) }
     var resetStep by remember { mutableStateOf(0) }
