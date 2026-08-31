@@ -181,7 +181,32 @@ Install over USB (`adb`, your user in `plugdev` or equivalent udev rules):
 ./gradlew :app:installDebug
 ```
 
-Release builds need a keystore. Example (do not commit the keystore or passwords):
+Release builds need a keystore. **Do not commit** the keystore or passwords.
+
+### GitHub Actions (required for updateable Releases)
+
+Create a keystore once, then add these **repository secrets**:
+
+| Secret | Value |
+|--------|--------|
+| `REMARKABLE_KEYSTORE_BASE64` | `base64 -w0 your.jks` (or `.p12`) |
+| `REMARKABLE_STORE_PASSWORD` | store password |
+| `REMARKABLE_KEY_ALIAS` | key alias |
+| `REMARKABLE_KEY_PASSWORD` | key password |
+| `REMARKABLE_STORE_TYPE` | optional (`PKCS12` if using `.p12`) |
+
+Example:
+
+```bash
+keytool -genkeypair -v -keystore remarkable-upload.jks -alias remarkable \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 remarkable-upload.jks   # paste into REMARKABLE_KEYSTORE_BASE64
+keytool -list -v -keystore remarkable-upload.jks   # SHA-1 for Spotify Dashboard
+```
+
+Use the **same** keystore for every CI release so sideload updates keep working.
+
+### Local release
 
 ```bash
 ./gradlew :app:assembleRelease \
@@ -191,7 +216,14 @@ Release builds need a keystore. Example (do not commit the keystore or passwords
   -Pandroid.injected.signing.key.password=...
 ```
 
-Or define `signingConfigs` only on your machine.
+Or create a gitignored `keystore.properties` at the repo root:
+
+```properties
+storeFile=/home/you/keys/remarkable-upload.jks
+storePassword=...
+keyAlias=remarkable
+keyPassword=...
+```
 
 ## Music / now playing
 

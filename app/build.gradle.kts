@@ -14,6 +14,35 @@ android {
     namespace = "com.miguelthemann.remarkable"
     compileSdk = 36
 
+    // Optional release signing from env (CI secrets) or local keystore.properties.
+    // Never commit keystores or passwords.
+    val releaseStoreFile = System.getenv("REMARKABLE_STORE_FILE")?.let { file(it) }
+    val localSigningProps = rootProject.file("keystore.properties")
+    val signingProps = java.util.Properties().apply {
+        if (localSigningProps.exists()) {
+            localSigningProps.inputStream().use { load(it) }
+        }
+    }
+    val resolvedStoreFile = releaseStoreFile
+        ?: signingProps.getProperty("storeFile")?.let { rootProject.file(it) }
+    val hasReleaseSigning = resolvedStoreFile != null && resolvedStoreFile.exists()
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = resolvedStoreFile
+                storePassword = System.getenv("REMARKABLE_STORE_PASSWORD")
+                    ?: signingProps.getProperty("storePassword")
+                keyAlias = System.getenv("REMARKABLE_KEY_ALIAS")
+                    ?: signingProps.getProperty("keyAlias")
+                keyPassword = System.getenv("REMARKABLE_KEY_PASSWORD")
+                    ?: signingProps.getProperty("keyPassword")
+                System.getenv("REMARKABLE_STORE_TYPE")?.let { storeType = it }
+                    ?: signingProps.getProperty("storeType")?.let { storeType = it }
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.miguelthemann.remarkable"
         minSdk = 26
@@ -46,11 +75,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Installable sideload APKs from GitHub Releases (replace with a real keystore later).
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             versionNameSuffix = "-debug"
+            // Same key as release when available, so sideload updates work across CI builds.
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

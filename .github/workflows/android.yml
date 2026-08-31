@@ -54,8 +54,41 @@ jobs:
           ./scripts/ci-release.sh prepare dist
           cat dist/version.env >> "$GITHUB_ENV"
 
+      - name: Decode release keystore
+        if: github.event_name != 'pull_request'
+        env:
+          REMARKABLE_KEYSTORE_BASE64: ${{ secrets.REMARKABLE_KEYSTORE_BASE64 }}
+          REMARKABLE_STORE_PASSWORD: ${{ secrets.REMARKABLE_STORE_PASSWORD }}
+          REMARKABLE_KEY_ALIAS: ${{ secrets.REMARKABLE_KEY_ALIAS }}
+          REMARKABLE_KEY_PASSWORD: ${{ secrets.REMARKABLE_KEY_PASSWORD }}
+          REMARKABLE_STORE_TYPE: ${{ secrets.REMARKABLE_STORE_TYPE }}
+        run: |
+          if [ -z "$REMARKABLE_KEYSTORE_BASE64" ]; then
+            echo "::error::Missing signing secrets. Add REMARKABLE_KEYSTORE_BASE64, REMARKABLE_STORE_PASSWORD, REMARKABLE_KEY_ALIAS, REMARKABLE_KEY_PASSWORD (optional REMARKABLE_STORE_TYPE) in repo Settings → Secrets."
+            exit 1
+          fi
+          echo "$REMARKABLE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/remarkable-upload.jks"
+          echo "REMARKABLE_STORE_FILE=$RUNNER_TEMP/remarkable-upload.jks" >> "$GITHUB_ENV"
+          echo "REMARKABLE_STORE_PASSWORD=$REMARKABLE_STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "REMARKABLE_KEY_ALIAS=$REMARKABLE_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "REMARKABLE_KEY_PASSWORD=$REMARKABLE_KEY_PASSWORD" >> "$GITHUB_ENV"
+          if [ -n "$REMARKABLE_STORE_TYPE" ]; then
+            echo "REMARKABLE_STORE_TYPE=$REMARKABLE_STORE_TYPE" >> "$GITHUB_ENV"
+          fi
+
       - name: Assemble debug + release
+        if: github.event_name == 'pull_request'
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Assemble debug + release (signed)
+        if: github.event_name != 'pull_request'
         run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
+        env:
+          REMARKABLE_STORE_FILE: ${{ env.REMARKABLE_STORE_FILE }}
+          REMARKABLE_STORE_PASSWORD: ${{ env.REMARKABLE_STORE_PASSWORD }}
+          REMARKABLE_KEY_ALIAS: ${{ env.REMARKABLE_KEY_ALIAS }}
+          REMARKABLE_KEY_PASSWORD: ${{ env.REMARKABLE_KEY_PASSWORD }}
+          REMARKABLE_STORE_TYPE: ${{ env.REMARKABLE_STORE_TYPE }}
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
@@ -64,7 +97,7 @@ jobs:
           path: |
             app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Prepare release assets

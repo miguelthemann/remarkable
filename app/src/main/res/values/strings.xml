@@ -60,7 +60,7 @@
     <string name="settings_city_placeholder">Lisbon</string>
     <string name="settings_spotify">Spotify</string>
     <string name="settings_client_id">Client ID</string>
-    <string name="settings_client_id_help">On developer.spotify.com/dashboard → Create app:\n• App name: Remarkable (or any name)\n• App description: anything (required)\n• Website: optional\n• Redirect URIs: add remarkable://callback then press Add\n• APIs/SDKs: tick Android\n• Accept the terms and save\nAfter creating the app, open Settings → open the Android section and set:\n• Package name: com.miguelthemann.remarkable\n• SHA-1 fingerprint: from your debug/release keystore (keytool -list -v -keystore …)\nPaste the Client ID below.</string>
+    <string name="settings_client_id_help">On developer.spotify.com/dashboard → Create app:\n• App name: Remarkable (or any name)\n• App description: anything (required)\n• Website: optional\n• Redirect URIs: add remarkable://callback then press Add\n• APIs/SDKs: tick Android\n• Accept the terms and save\nAfter creating the app, open Settings → Android section:\n• Package name: com.miguelthemann.remarkable\n• SHA-1: fingerprint of the keystore that signs the APK you install (CI release key or local debug)\nPaste the Client ID below.</string>
     <string name="settings_spotify_redirect_uri">Redirect URI: remarkable://callback</string>
     <string name="settings_spotify_package">Android package: com.miguelthemann.remarkable</string>
     <string name="settings_spotify_authorized">Spotify account connected.</string>
