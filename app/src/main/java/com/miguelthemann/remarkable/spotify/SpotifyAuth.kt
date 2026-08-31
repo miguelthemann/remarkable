@@ -10,6 +10,8 @@ import android.net.Uri
 import com.spotify.sdk.android.auth.AuthorizationClient
 import com.spotify.sdk.android.auth.AuthorizationRequest
 import com.spotify.sdk.android.auth.AuthorizationResponse
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -57,15 +59,19 @@ object SpotifyAuth {
         return AuthorizationClient.createLoginActivityIntent(activity, request)
     }
 
-    fun parseActivityResult(resultCode: Int, data: Intent?, clientId: String): Result<SpotifyAuthResult> {
+    suspend fun parseActivityResult(resultCode: Int, data: Intent?, clientId: String): Result<SpotifyAuthResult> {
         if (data == null) return Result.failure(IllegalStateException("Spotify auth cancelled"))
-        return parseResponse(AuthorizationClient.getResponse(resultCode, data), clientId)
+        return withContext(Dispatchers.IO) {
+            parseResponse(AuthorizationClient.getResponse(resultCode, data), clientId)
+        }
     }
 
-    fun parseRedirect(uri: Uri?, clientId: String): Result<SpotifyAuthResult>? {
+    suspend fun parseRedirect(uri: Uri?, clientId: String): Result<SpotifyAuthResult>? {
         if (uri == null) return null
         if (uri.scheme != "remarkable" || uri.host != "callback") return null
-        return parseResponse(AuthorizationResponse.fromUri(uri), clientId)
+        return withContext(Dispatchers.IO) {
+            parseResponse(AuthorizationResponse.fromUri(uri), clientId)
+        }
     }
 
     fun isAuthorizationRequired(message: String): Boolean {
