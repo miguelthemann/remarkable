@@ -64,9 +64,10 @@ import com.miguelthemann.remarkable.prefs.AccentPreset
 import com.miguelthemann.remarkable.prefs.BackgroundMode
 import com.miguelthemann.remarkable.prefs.ClockStyle
 import com.miguelthemann.remarkable.prefs.CustomBgPreset
+import com.miguelthemann.remarkable.prefs.SpotifyModuleStyle
 import com.miguelthemann.remarkable.prefs.ThemeMode
+import com.miguelthemann.remarkable.prefs.WeatherEffect
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
-import com.miguelthemann.remarkable.ui.clock.ModuleAxis
 import com.miguelthemann.remarkable.ui.theme.fromArgbLong
 import kotlinx.coroutines.delay
 
@@ -278,20 +279,57 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SectionTitle(stringResource(R.string.settings_modules))
             Text(
-                text = stringResource(R.string.settings_modules_help),
+                text = stringResource(R.string.settings_modules_drag_help),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
-            ModuleNudge(stringResource(R.string.module_time), ModuleAxis.TIME_X, ModuleAxis.TIME_Y, viewModel)
-            ModuleNudge(stringResource(R.string.module_date), ModuleAxis.DATE_X, ModuleAxis.DATE_Y, viewModel)
-            ModuleNudge(stringResource(R.string.module_weather), ModuleAxis.WEATHER_X, ModuleAxis.WEATHER_Y, viewModel)
-            ModuleNudge(stringResource(R.string.module_spotify), ModuleAxis.SPOTIFY_X, ModuleAxis.SPOTIFY_Y, viewModel)
             TextButton(
                 onClick = viewModel::resetModules,
                 modifier = Modifier.padding(horizontal = 8.dp),
             ) {
                 Text(stringResource(R.string.settings_reset_modules))
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SectionTitle(stringResource(R.string.settings_spotify_module))
+            Text(
+                text = stringResource(R.string.settings_spotify_style),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            ChipRow {
+                SpotifyModuleStyle.entries.forEach { style ->
+                    FilterChip(
+                        selected = state.spotifyStyle == style,
+                        onClick = { viewModel.setSpotifyStyle(style) },
+                        label = { Text(spotifyStyleLabel(style)) },
+                    )
+                }
+            }
+            ToggleRow(stringResource(R.string.settings_show_spotify_icon), state.showSpotifyIcon, viewModel::setShowSpotifyIcon)
+            ToggleRow(stringResource(R.string.settings_generic_music_icon), state.useGenericMusicIcon, viewModel::setUseGenericMusicIcon)
+            ToggleRow(stringResource(R.string.settings_show_track_title), state.showTrackTitle, viewModel::setShowTrackTitle)
+            ToggleRow(stringResource(R.string.settings_show_artist), state.showArtist, viewModel::setShowArtist)
+            ToggleRow(stringResource(R.string.settings_show_album), state.showAlbum, viewModel::setShowAlbum)
+            ToggleRow(stringResource(R.string.settings_show_release_year), state.showReleaseYear, viewModel::setShowReleaseYear)
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SectionTitle(stringResource(R.string.settings_weather_effect))
+            Text(
+                text = stringResource(R.string.settings_weather_effect_help),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            ChipRow {
+                WeatherEffect.entries.forEach { effect ->
+                    FilterChip(
+                        selected = state.weatherEffect == effect,
+                        onClick = { viewModel.setWeatherEffect(effect) },
+                        label = { Text(weatherEffectLabel(effect)) },
+                    )
+                }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -469,24 +507,6 @@ private fun ChipRow(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ModuleNudge(
-    title: String,
-    axisX: ModuleAxis,
-    axisY: ModuleAxis,
-    viewModel: ClockViewModel,
-) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { viewModel.nudgeModule(axisX, -4f) }) { Text("←") }
-            TextButton(onClick = { viewModel.nudgeModule(axisX, 4f) }) { Text("→") }
-            TextButton(onClick = { viewModel.nudgeModule(axisY, -4f) }) { Text("↑") }
-            TextButton(onClick = { viewModel.nudgeModule(axisY, 4f) }) { Text("↓") }
-        }
-    }
-}
-
-@Composable
 private fun SectionTitle(text: String) {
     Text(
         text = text,
@@ -539,5 +559,28 @@ private fun clockStyleLabel(style: ClockStyle): String = stringResource(
         ClockStyle.ANALOG -> R.string.clock_analog
         ClockStyle.DIGITAL -> R.string.clock_digital
         ClockStyle.BOTH -> R.string.clock_both
+    },
+)
+
+@Composable
+private fun spotifyStyleLabel(style: SpotifyModuleStyle): String = stringResource(
+    when (style) {
+        SpotifyModuleStyle.ONE_LINER -> R.string.spotify_style_oneliner
+        SpotifyModuleStyle.CARD -> R.string.spotify_style_card
+        SpotifyModuleStyle.WIDGET -> R.string.spotify_style_widget
+    },
+)
+
+@Composable
+private fun weatherEffectLabel(effect: WeatherEffect): String = stringResource(
+    when (effect) {
+        WeatherEffect.AUTO -> R.string.weather_fx_auto
+        WeatherEffect.CLEAR -> R.string.weather_fx_clear
+        WeatherEffect.CLOUDY -> R.string.weather_fx_cloudy
+        WeatherEffect.RAIN -> R.string.weather_fx_rain
+        WeatherEffect.SNOW -> R.string.weather_fx_snow
+        WeatherEffect.THUNDER -> R.string.weather_fx_thunder
+        WeatherEffect.FOG -> R.string.weather_fx_fog
+        WeatherEffect.NONE -> R.string.weather_fx_none
     },
 )

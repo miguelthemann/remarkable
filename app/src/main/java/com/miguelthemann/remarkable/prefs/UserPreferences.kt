@@ -15,6 +15,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlin.math.abs
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "remarkable")
 
@@ -23,6 +24,12 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK, MONET }
 enum class BackgroundMode { SOLID, MONET, WEATHER, TIME_OF_DAY, CUSTOM, CUSTOM_COLOR, IMAGE }
 
 enum class ClockStyle { ANALOG, DIGITAL, BOTH }
+
+enum class SpotifyModuleStyle { ONE_LINER, CARD, WIDGET }
+
+enum class WeatherEffect {
+    AUTO, CLEAR, CLOUDY, RAIN, SNOW, THUNDER, FOG, NONE,
+}
 
 enum class AccentPreset(val argb: Long) {
     TEAL(0xFF006A6A),
@@ -35,7 +42,6 @@ enum class AccentPreset(val argb: Long) {
     SLATE(0xFF546E7A),
 }
 
-/** Neutral “normal” colours for custom backgrounds; remapped for light/dark at draw time. */
 enum class CustomBgPreset(val argb: Long) {
     WHITE(0xFFF5F5F5),
     CREAM(0xFFF7F1E5),
@@ -48,18 +54,46 @@ enum class CustomBgPreset(val argb: Long) {
     CHARCOAL(0xFF455A64),
 }
 
+/** Module centres as fractions of the screen (0–1). */
 data class ModuleOffsets(
-    val timeX: Float = 0f,
-    val timeY: Float = 0f,
-    val dateX: Float = 0f,
-    val dateY: Float = 0f,
-    val weatherX: Float = 0f,
-    val weatherY: Float = 0f,
-    val spotifyX: Float = 0f,
-    val spotifyY: Float = 0f,
-)
+    val timeX: Float = 0.5f,
+    val timeY: Float = 0.30f,
+    val dateX: Float = 0.5f,
+    val dateY: Float = 0.46f,
+    val weatherX: Float = 0.5f,
+    val weatherY: Float = 0.66f,
+    val spotifyX: Float = 0.5f,
+    val spotifyY: Float = 0.84f,
+) {
+    companion object {
+        fun fromStored(
+            timeX: Float?, timeY: Float?,
+            dateX: Float?, dateY: Float?,
+            weatherX: Float?, weatherY: Float?,
+            spotifyX: Float?, spotifyY: Float?,
+        ): ModuleOffsets {
+            val defaults = ModuleOffsets()
+            fun frac(v: Float?, d: Float): Float {
+                if (v == null) return d
+                // Legacy dp-style offsets were roughly -80..80
+                return if (abs(v) > 1.5f) d else v.coerceIn(0.05f, 0.95f)
+            }
+            return ModuleOffsets(
+                timeX = frac(timeX, defaults.timeX),
+                timeY = frac(timeY, defaults.timeY),
+                dateX = frac(dateX, defaults.dateX),
+                dateY = frac(dateY, defaults.dateY),
+                weatherX = frac(weatherX, defaults.weatherX),
+                weatherY = frac(weatherY, defaults.weatherY),
+                spotifyX = frac(spotifyX, defaults.spotifyX),
+                spotifyY = frac(spotifyY, defaults.spotifyY),
+            )
+        }
+    }
+}
 
 data class UserSettings(
+    val onboardingDone: Boolean = false,
     val use24Hour: Boolean = true,
     val showSeconds: Boolean = true,
     val keepAwake: Boolean = true,
@@ -68,7 +102,7 @@ data class UserSettings(
     val city: String = "",
     val spotifyClientId: String = "",
     val themeMode: ThemeMode = ThemeMode.MONET,
-    val backgroundMode: BackgroundMode = BackgroundMode.MONET,
+    val backgroundMode: BackgroundMode = BackgroundMode.WEATHER,
     val clockStyle: ClockStyle = ClockStyle.BOTH,
     val accentArgb: Long = AccentPreset.TEAL.argb,
     val customBgArgb: Long = CustomBgPreset.CREAM.argb,
@@ -83,9 +117,18 @@ data class UserSettings(
     val smartPixels: Boolean = false,
     val smartPixelsStrength: Float = 0.35f,
     val overlayEnabled: Boolean = false,
+    val spotifyStyle: SpotifyModuleStyle = SpotifyModuleStyle.WIDGET,
+    val showSpotifyIcon: Boolean = true,
+    val useGenericMusicIcon: Boolean = false,
+    val showTrackTitle: Boolean = true,
+    val showArtist: Boolean = true,
+    val showAlbum: Boolean = true,
+    val showReleaseYear: Boolean = false,
+    val weatherEffect: WeatherEffect = WeatherEffect.AUTO,
 )
 
 class UserPreferences(private val context: Context) {
+    private val onboardingDone = booleanPreferencesKey("onboarding_done")
     private val use24Hour = booleanPreferencesKey("use_24h")
     private val showSeconds = booleanPreferencesKey("show_seconds")
     private val keepAwake = booleanPreferencesKey("keep_awake")
@@ -116,9 +159,18 @@ class UserPreferences(private val context: Context) {
     private val smartPixels = booleanPreferencesKey("smart_pixels")
     private val smartPixelsStrength = floatPreferencesKey("smart_pixels_strength")
     private val overlayEnabled = booleanPreferencesKey("overlay_enabled")
+    private val spotifyStyle = stringPreferencesKey("spotify_style")
+    private val showSpotifyIcon = booleanPreferencesKey("show_spotify_icon")
+    private val useGenericMusicIcon = booleanPreferencesKey("generic_music_icon")
+    private val showTrackTitle = booleanPreferencesKey("show_track_title")
+    private val showArtist = booleanPreferencesKey("show_artist")
+    private val showAlbum = booleanPreferencesKey("show_album")
+    private val showReleaseYear = booleanPreferencesKey("show_release_year")
+    private val weatherEffect = stringPreferencesKey("weather_effect")
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { prefs ->
         UserSettings(
+            onboardingDone = prefs[onboardingDone] ?: false,
             use24Hour = prefs[use24Hour] ?: true,
             showSeconds = prefs[showSeconds] ?: true,
             keepAwake = prefs[keepAwake] ?: true,
@@ -130,7 +182,7 @@ class UserPreferences(private val context: Context) {
                 ?: ThemeMode.MONET,
             backgroundMode = prefs[backgroundMode]?.let {
                 runCatching { BackgroundMode.valueOf(it) }.getOrNull()
-            } ?: BackgroundMode.MONET,
+            } ?: BackgroundMode.WEATHER,
             clockStyle = prefs[clockStyle]?.let { runCatching { ClockStyle.valueOf(it) }.getOrNull() }
                 ?: ClockStyle.BOTH,
             accentArgb = prefs[accentArgb]?.toLongOrNull() ?: AccentPreset.TEAL.argb,
@@ -139,15 +191,11 @@ class UserPreferences(private val context: Context) {
             showDate = prefs[showDate] ?: true,
             showWeather = prefs[showWeather] ?: true,
             showSpotify = prefs[showSpotify] ?: true,
-            modules = ModuleOffsets(
-                timeX = prefs[timeX] ?: 0f,
-                timeY = prefs[timeY] ?: 0f,
-                dateX = prefs[dateX] ?: 0f,
-                dateY = prefs[dateY] ?: 0f,
-                weatherX = prefs[weatherX] ?: 0f,
-                weatherY = prefs[weatherY] ?: 0f,
-                spotifyX = prefs[spotifyX] ?: 0f,
-                spotifyY = prefs[spotifyY] ?: 0f,
+            modules = ModuleOffsets.fromStored(
+                prefs[timeX], prefs[timeY],
+                prefs[dateX], prefs[dateY],
+                prefs[weatherX], prefs[weatherY],
+                prefs[spotifyX], prefs[spotifyY],
             ),
             burnInProtection = prefs[burnInProtection] ?: true,
             burnInShiftDp = prefs[burnInShiftDp] ?: 8,
@@ -155,9 +203,23 @@ class UserPreferences(private val context: Context) {
             smartPixels = prefs[smartPixels] ?: false,
             smartPixelsStrength = prefs[smartPixelsStrength] ?: 0.35f,
             overlayEnabled = prefs[overlayEnabled] ?: false,
+            spotifyStyle = prefs[spotifyStyle]?.let {
+                runCatching { SpotifyModuleStyle.valueOf(it) }.getOrNull()
+            } ?: SpotifyModuleStyle.WIDGET,
+            showSpotifyIcon = prefs[showSpotifyIcon] ?: true,
+            useGenericMusicIcon = prefs[useGenericMusicIcon] ?: false,
+            showTrackTitle = prefs[showTrackTitle] ?: true,
+            showArtist = prefs[showArtist] ?: true,
+            showAlbum = prefs[showAlbum] ?: true,
+            showReleaseYear = prefs[showReleaseYear] ?: false,
+            weatherEffect = prefs[weatherEffect]?.let {
+                runCatching { WeatherEffect.valueOf(it) }.getOrNull()
+            } ?: WeatherEffect.AUTO,
         )
     }
 
+    suspend fun setOnboardingDone(value: Boolean) =
+        context.dataStore.edit { it[onboardingDone] = value }
     suspend fun setUse24Hour(value: Boolean) = context.dataStore.edit { it[use24Hour] = value }
     suspend fun setShowSeconds(value: Boolean) = context.dataStore.edit { it[showSeconds] = value }
     suspend fun setKeepAwake(value: Boolean) = context.dataStore.edit { it[keepAwake] = value }
@@ -182,14 +244,14 @@ class UserPreferences(private val context: Context) {
     suspend fun setShowWeather(value: Boolean) = context.dataStore.edit { it[showWeather] = value }
     suspend fun setShowSpotify(value: Boolean) = context.dataStore.edit { it[showSpotify] = value }
     suspend fun setModuleOffsets(modules: ModuleOffsets) = context.dataStore.edit {
-        it[timeX] = modules.timeX
-        it[timeY] = modules.timeY
-        it[dateX] = modules.dateX
-        it[dateY] = modules.dateY
-        it[weatherX] = modules.weatherX
-        it[weatherY] = modules.weatherY
-        it[spotifyX] = modules.spotifyX
-        it[spotifyY] = modules.spotifyY
+        it[timeX] = modules.timeX.coerceIn(0.05f, 0.95f)
+        it[timeY] = modules.timeY.coerceIn(0.05f, 0.95f)
+        it[dateX] = modules.dateX.coerceIn(0.05f, 0.95f)
+        it[dateY] = modules.dateY.coerceIn(0.05f, 0.95f)
+        it[weatherX] = modules.weatherX.coerceIn(0.05f, 0.95f)
+        it[weatherY] = modules.weatherY.coerceIn(0.05f, 0.95f)
+        it[spotifyX] = modules.spotifyX.coerceIn(0.05f, 0.95f)
+        it[spotifyY] = modules.spotifyY.coerceIn(0.05f, 0.95f)
     }
     suspend fun setBurnInProtection(value: Boolean) =
         context.dataStore.edit { it[burnInProtection] = value }
@@ -203,4 +265,20 @@ class UserPreferences(private val context: Context) {
         context.dataStore.edit { it[smartPixelsStrength] = value.coerceIn(0.1f, 0.8f) }
     suspend fun setOverlayEnabled(value: Boolean) =
         context.dataStore.edit { it[overlayEnabled] = value }
+    suspend fun setSpotifyStyle(value: SpotifyModuleStyle) =
+        context.dataStore.edit { it[spotifyStyle] = value.name }
+    suspend fun setShowSpotifyIcon(value: Boolean) =
+        context.dataStore.edit { it[showSpotifyIcon] = value }
+    suspend fun setUseGenericMusicIcon(value: Boolean) =
+        context.dataStore.edit { it[useGenericMusicIcon] = value }
+    suspend fun setShowTrackTitle(value: Boolean) =
+        context.dataStore.edit { it[showTrackTitle] = value }
+    suspend fun setShowArtist(value: Boolean) =
+        context.dataStore.edit { it[showArtist] = value }
+    suspend fun setShowAlbum(value: Boolean) =
+        context.dataStore.edit { it[showAlbum] = value }
+    suspend fun setShowReleaseYear(value: Boolean) =
+        context.dataStore.edit { it[showReleaseYear] = value }
+    suspend fun setWeatherEffect(value: WeatherEffect) =
+        context.dataStore.edit { it[weatherEffect] = value.name }
 }

@@ -20,6 +20,8 @@ const val SPOTIFY_PACKAGE = "com.spotify.music"
 data class SpotifyNowPlaying(
     val title: String,
     val artist: String,
+    val album: String = "",
+    val releaseYear: String? = null,
     val isPaused: Boolean,
     val artwork: Bitmap? = null,
 )
@@ -120,8 +122,10 @@ class SpotifyRemote(private val context: Context) {
     private fun PlayerState.toNowPlaying(): SpotifyNowPlaying {
         val track = track
         return SpotifyNowPlaying(
-            title = track?.name.orEmpty().ifBlank { "â€”" },
+            title = track?.name.orEmpty().ifBlank { "—" },
             artist = track?.artist?.name.orEmpty(),
+            album = track?.album?.name.orEmpty(),
+            releaseYear = null, // App Remote does not expose release year
             isPaused = isPaused,
         )
     }
