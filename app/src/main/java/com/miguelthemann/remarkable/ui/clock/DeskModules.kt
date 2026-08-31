@@ -170,59 +170,65 @@ private fun SpotifyStatusBody(
     showArt: Boolean,
 ) {
     val colors = LocalDeskModuleColors.current
-    when (val music = state.music) {
-        MusicStatus.NeedNotificationAccess -> {
-            Text(stringResource(R.string.music_need_notification_access), color = colors.onSurface)
-            val context = androidx.compose.ui.platform.LocalContext.current
-            Button(
-                onClick = {
-                    context.startActivity(
-                        android.content.Intent(
-                            android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS,
-                        ),
-                    )
-                },
-            ) {
-                Text(stringResource(R.string.music_open_notification_access))
-            }
-            TextButton(onClick = viewModel::refreshSystemMedia) {
-                Text(stringResource(R.string.music_refresh))
-            }
-        }
-        MusicStatus.NeedSpotifySetup -> Text(
-            stringResource(R.string.spotify_need_client_id),
-            color = colors.onSurface,
-        )
-        MusicStatus.NeedLastFmSetup -> Text(
-            stringResource(R.string.lastfm_need_setup),
-            color = colors.onSurface,
-        )
-        MusicStatus.NothingPlaying, MusicStatus.Idle -> {
-            Text(stringResource(R.string.spotify_idle), color = colors.onSurface)
-            if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SYSTEM) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        when (val music = state.music) {
+            MusicStatus.NeedNotificationAccess -> {
+                Text(stringResource(R.string.music_need_notification_access), color = colors.onSurface)
+                val context = androidx.compose.ui.platform.LocalContext.current
+                Button(
+                    onClick = {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS,
+                            ),
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.music_open_notification_access))
+                }
                 TextButton(onClick = viewModel::refreshSystemMedia) {
                     Text(stringResource(R.string.music_refresh))
                 }
             }
-        }
-        MusicStatus.Loading -> Text(stringResource(R.string.music_loading), color = colors.onSurface)
-        is MusicStatus.Failed -> {
-            Text(stringResource(R.string.music_error), color = colors.onSurface)
-            Text(music.message, color = colors.onSurfaceVariant)
-            if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SPOTIFY) {
-                Button(onClick = viewModel::connectSpotify) {
-                    Text(stringResource(R.string.spotify_connect))
+            MusicStatus.NeedSpotifySetup -> Text(
+                stringResource(R.string.spotify_need_client_id),
+                color = colors.onSurface,
+            )
+            MusicStatus.NeedLastFmSetup -> Text(
+                stringResource(R.string.lastfm_need_setup),
+                color = colors.onSurface,
+            )
+            MusicStatus.NothingPlaying, MusicStatus.Idle -> {
+                Text(stringResource(R.string.spotify_idle), color = colors.onSurface)
+                if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SYSTEM) {
+                    TextButton(onClick = viewModel::refreshSystemMedia) {
+                        Text(stringResource(R.string.music_refresh))
+                    }
                 }
             }
-        }
-        is MusicStatus.Ready -> {
-            MusicReadyContent(
-                state = state,
-                track = music.track,
-                canControl = music.canControl,
-                showArt = showArt,
-                viewModel = viewModel,
-            )
+            MusicStatus.Loading -> Text(stringResource(R.string.music_loading), color = colors.onSurface)
+            is MusicStatus.Failed -> {
+                Text(stringResource(R.string.music_error), color = colors.onSurface)
+                Text(music.message, color = colors.onSurfaceVariant)
+                if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SPOTIFY) {
+                    Button(onClick = viewModel::connectSpotify) {
+                        Text(stringResource(R.string.spotify_connect))
+                    }
+                }
+            }
+            is MusicStatus.Ready -> {
+                MusicReadyContent(
+                    state = state,
+                    track = music.track,
+                    canControl = music.canControl,
+                    showArt = showArt,
+                    viewModel = viewModel,
+                )
+            }
         }
     }
 }
