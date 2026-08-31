@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: MIT
 #
 # Usage:
-#   ./scripts/ci-release.sh prepare [out_dir]   # use current version (bump only if tag exists)
-#   ./scripts/ci-release.sh bump-next           # after a successful release, prepare the next version
-#
-# Version rules: 1.0.0 -> 1.0.1 -> … -> 1.0.9 -> 1.1.0
-# Codename advances when major.minor changes.
+#   ./scripts/ci-release.sh prepare [out_dir]
+#       Use the version already in gradle.properties. Never bumps here.
+#       Sets should_release=true only when tag v$VERSION does not exist yet.
+#   ./scripts/ci-release.sh bump-next
+#       After a successful *new* release, advance version for the next one:
+#       1.0.0 -> 1.0.1 -> … -> 1.0.9 -> 1.1.0 (new codename on minor/major).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -99,7 +100,6 @@ write_changelog() {
   local code="$3"
   local prev_tag=""
 
-  # Changelog since the previous versioned tag (not this one).
   prev_tag="$(git tag -l 'v*' --sort=-v:refname | grep -vE "^v${name}$" | head -n1 || true)"
 
   {
@@ -127,20 +127,8 @@ write_changelog() {
     fi
     echo
     echo "---"
-    echo "Install the APK below, or open this page from Remarkable → Settings when an update is offered."
+    echo "Install the APKs below (debug or release), or open this page from Remarkable → Settings when an update is offered."
   } > "$OUT_DIR/CHANGELOG.md"
-}
-
-write_env() {
-  local code="$1"
-  local name="$2"
-  local codename="$3"
-  {
-    echo "code=$code"
-    echo "name=$name"
-    echo "codename=$codename"
-    echo "tag=v${name}"
-  } > "$OUT_DIR/version.env"
 }
 
 case "$MODE" in
@@ -149,19 +137,22 @@ case "$MODE" in
     name="$(get_prop REMARKABLE_VERSION_NAME)"
     codename="$(get_prop REMARKABLE_VERSION_CODENAME)"
 
-    # If this version was already released, bump so we don't recreate the same tag.
     if git rev-parse "v${name}" >/dev/null 2>&1; then
-      echo "Tag v${name} already exists — bumping before release"
-      bump_version
-      code="$(get_prop REMARKABLE_VERSION_CODE)"
-      name="$(get_prop REMARKABLE_VERSION_NAME)"
-      codename="$(get_prop REMARKABLE_VERSION_CODENAME)"
+      echo "Tag v${name} already exists — will not republish or bump"
+      should_release=false
     else
-      echo "Releasing current version ${name} ${codename} (code ${code}) — no pre-bump"
+      echo "Will release ${name} ${codename} (code ${code})"
+      should_release=true
     fi
 
     write_changelog "$name" "$codename" "$code"
-    write_env "$code" "$name" "$codename"
+    {
+      echo "code=$code"
+      echo "name=$name"
+      echo "codename=$codename"
+      echo "tag=v${name}"
+      echo "should_release=$should_release"
+    } > "$OUT_DIR/version.env"
     ;;
   bump-next)
     bump_version

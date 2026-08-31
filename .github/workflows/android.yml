@@ -21,7 +21,6 @@ jobs:
     name: Build & release
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # Avoid release loop from the version bump commit.
     if: >
       github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
@@ -49,39 +48,33 @@ jobs:
         run: chmod +x gradlew scripts/ci-release.sh
 
       - name: Prepare release metadata
-        id: prepare
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         run: |
           mkdir -p dist
           ./scripts/ci-release.sh prepare dist
-          cat dist/version.env >> "$GITHUB_OUTPUT"
           cat dist/version.env >> "$GITHUB_ENV"
 
-      - name: Read version (PR builds — no release)
-        if: github.event_name == 'pull_request'
-        run: |
-          code=$(grep -E '^REMARKABLE_VERSION_CODE=' gradle.properties | cut -d= -f2 | tr -d '\r')
-          name=$(grep -E '^REMARKABLE_VERSION_NAME=' gradle.properties | cut -d= -f2 | tr -d '\r')
-          codename=$(grep -E '^REMARKABLE_VERSION_CODENAME=' gradle.properties | cut -d= -f2- | tr -d '\r')
-          echo "PR build ${name} ${codename} (code ${code})"
+      - name: Assemble debug + release
+        run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
 
-      - name: Assemble debug
-        run: ./gradlew :app:assembleDebug --stacktrace
-
-      - name: Upload debug APK artifact
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: remarkable-debug-${{ github.sha }}
-          path: app/build/outputs/apk/debug/*.apk
+          name: remarkable-apks-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
 
       - name: Prepare release assets
-        if: github.event_name != 'pull_request' && env.name != ''
+        if: github.event_name != 'pull_request' && env.should_release == 'true'
         run: |
           mkdir -p dist
-          apk=$(ls app/build/outputs/apk/debug/*.apk | head -n1)
-          cp "$apk" "dist/remarkable-${name}-debug.apk"
+          debug_apk=$(ls app/build/outputs/apk/debug/*.apk | head -n1)
+          release_apk=$(ls app/build/outputs/apk/release/*.apk | head -n1)
+          cp "$debug_apk" "dist/remarkable-${name}-debug.apk"
+          cp "$release_apk" "dist/remarkable-${name}-release.apk"
           cat > dist/latest.json <<EOF
           {
             "versionCode": ${code},
@@ -91,8 +84,8 @@ jobs:
           }
           EOF
 
-      - name: Publish versioned GitHub Release
-        if: github.event_name != 'pull_request' && env.name != ''
+      - name: Publish GitHub Release
+        if: github.event_name != 'pull_request' && env.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.name }}
@@ -103,26 +96,12 @@ jobs:
           files: |
             dist/latest.json
             dist/remarkable-${{ env.name }}-debug.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish ci-latest channel
-        if: github.event_name != 'pull_request' && env.name != ''
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ci-latest
-          name: ${{ env.name }} ${{ env.codename }}
-          body_path: dist/CHANGELOG.md
-          prerelease: true
-          make_latest: false
-          files: |
-            dist/latest.json
-            dist/remarkable-${{ env.name }}-debug.apk
+            dist/remarkable-${{ env.name }}-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bump version for next release
-        if: github.event_name != 'pull_request' && env.name != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: github.event_name != 'pull_request' && env.should_release == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
           ./scripts/ci-release.sh bump-next
           git config user.name "github-actions[bot]"

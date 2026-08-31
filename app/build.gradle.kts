@@ -46,6 +46,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Installable sideload APKs from GitHub Releases (replace with a real keystore later).
+            signingConfig = signingConfigs.getByName("debug")
         }
         debug {
             versionNameSuffix = "-debug"

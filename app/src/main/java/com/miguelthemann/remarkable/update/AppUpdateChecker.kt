@@ -56,11 +56,10 @@ class AppUpdateChecker(
     private val json: Json = Json { ignoreUnknownKeys = true },
     private val owner: String = "miguelthemann",
     private val repo: String = "remarkable",
-    private val channelTag: String = "ci-latest",
 ) {
     fun check(): AppUpdateStatus {
         return try {
-            val remote = fetchChannelManifest() ?: return AppUpdateStatus.UpToDate
+            val remote = fetchLatestManifest() ?: return AppUpdateStatus.UpToDate
             if (remote.versionCode > BuildConfig.VERSION_CODE) {
                 AppUpdateStatus.Available(remote)
             } else {
@@ -71,8 +70,8 @@ class AppUpdateChecker(
         }
     }
 
-    private fun fetchChannelManifest(): AppUpdateInfo? {
-        val release = get("https://api.github.com/repos/$owner/$repo/releases/tags/$channelTag")
+    private fun fetchLatestManifest(): AppUpdateInfo? {
+        val release = get("https://api.github.com/repos/$owner/$repo/releases/latest")
             ?.let { json.decodeFromString<GhRelease>(it) }
             ?: return null
 
@@ -85,7 +84,7 @@ class AppUpdateChecker(
                 versionName = parsed.versionName,
                 codename = parsed.codename.ifBlank { release.name.orEmpty() },
                 htmlUrl = parsed.htmlUrl.ifBlank {
-                    release.htmlUrl ?: "https://github.com/$owner/$repo/releases/tag/$channelTag"
+                    release.htmlUrl ?: "https://github.com/$owner/$repo/releases/latest"
                 },
             )
         }
@@ -100,7 +99,7 @@ class AppUpdateChecker(
             versionCode = code,
             versionName = versionName,
             codename = codename,
-            htmlUrl = release.htmlUrl ?: "https://github.com/$owner/$repo/releases/tag/$channelTag",
+            htmlUrl = release.htmlUrl ?: "https://github.com/$owner/$repo/releases/latest",
         )
     }
 
