@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.miguelthemann.remarkable.media.MusicSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlin.math.abs
@@ -128,6 +129,12 @@ data class UserSettings(
     val showAlbum: Boolean = true,
     val showReleaseYear: Boolean = false,
     val weatherEffect: WeatherEffect = WeatherEffect.AUTO,
+    val musicSource: MusicSource = MusicSource.SYSTEM,
+    val lastFmApiKey: String = "",
+    val lastFmSharedSecret: String = "",
+    val lastFmUsername: String = "",
+    val lastFmSessionKey: String = "",
+    val lastFmScrobble: Boolean = false,
 )
 
 class UserPreferences(private val context: Context) {
@@ -170,6 +177,12 @@ class UserPreferences(private val context: Context) {
     private val showAlbum = booleanPreferencesKey("show_album")
     private val showReleaseYear = booleanPreferencesKey("show_release_year")
     private val weatherEffect = stringPreferencesKey("weather_effect")
+    private val musicSource = stringPreferencesKey("music_source")
+    private val lastFmApiKey = stringPreferencesKey("lastfm_api_key")
+    private val lastFmSharedSecret = stringPreferencesKey("lastfm_shared_secret")
+    private val lastFmUsername = stringPreferencesKey("lastfm_username")
+    private val lastFmSessionKey = stringPreferencesKey("lastfm_session_key")
+    private val lastFmScrobble = booleanPreferencesKey("lastfm_scrobble")
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { prefs ->
         UserSettings(
@@ -218,6 +231,14 @@ class UserPreferences(private val context: Context) {
             weatherEffect = prefs[weatherEffect]?.let {
                 runCatching { WeatherEffect.valueOf(it) }.getOrNull()
             } ?: WeatherEffect.AUTO,
+            musicSource = prefs[musicSource]?.let {
+                runCatching { MusicSource.valueOf(it) }.getOrNull()
+            } ?: MusicSource.SYSTEM,
+            lastFmApiKey = prefs[lastFmApiKey].orEmpty(),
+            lastFmSharedSecret = prefs[lastFmSharedSecret].orEmpty(),
+            lastFmUsername = prefs[lastFmUsername].orEmpty(),
+            lastFmSessionKey = prefs[lastFmSessionKey].orEmpty(),
+            lastFmScrobble = prefs[lastFmScrobble] ?: false,
         )
     }
 
@@ -284,6 +305,18 @@ class UserPreferences(private val context: Context) {
         context.dataStore.edit { it[showReleaseYear] = value }
     suspend fun setWeatherEffect(value: WeatherEffect) =
         context.dataStore.edit { it[weatherEffect] = value.name }
+    suspend fun setMusicSource(value: MusicSource) =
+        context.dataStore.edit { it[musicSource] = value.name }
+    suspend fun setLastFmApiKey(value: String) =
+        context.dataStore.edit { it[lastFmApiKey] = value.trim() }
+    suspend fun setLastFmSharedSecret(value: String) =
+        context.dataStore.edit { it[lastFmSharedSecret] = value.trim() }
+    suspend fun setLastFmUsername(value: String) =
+        context.dataStore.edit { it[lastFmUsername] = value.trim() }
+    suspend fun setLastFmSessionKey(value: String) =
+        context.dataStore.edit { it[lastFmSessionKey] = value.trim() }
+    suspend fun setLastFmScrobble(value: Boolean) =
+        context.dataStore.edit { it[lastFmScrobble] = value }
 
     /** Yeets every preference into the void. Defaults crawl back from the enum graveyard. */
     suspend fun clearAll() {

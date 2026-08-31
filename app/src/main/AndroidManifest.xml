@@ -73,6 +73,15 @@
         </activity>
 
         <service
+            android:name=".media.MediaNotificationListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <service
             android:name=".dream.RemarkableDreamService"
             android:exported="true"
             android:permission="android.permission.BIND_DREAM_SERVICE">

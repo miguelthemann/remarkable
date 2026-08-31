@@ -193,16 +193,32 @@ Release builds need a keystore. Example (do not commit the keystore or passwords
 
 Or define `signingConfigs` only on your machine.
 
-## Spotify setup
+## Music / now playing
+
+By default Remarkable shows **whatever Android is playing** (Spotify, YouTube Music, podcasts, …) via the system media session. You need to grant **notification access** once (Settings → Music → Open notification access).
+
+Optional sources in Settings:
+
+- **Spotify** — App Remote controls (needs Client ID + Spotify installed)
+- **Last.fm** — shows your recent / now-playing from last.fm (API key + username). Optional scrobbling from device playback needs shared secret + a one-time password sign-in.
+
+## Spotify setup (optional)
 
 1. Install Spotify and sign in on the device
 2. Create an app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
 3. Redirect URI: `remarkable://callback`
 4. Package name: `com.miguelthemann.remarkable`
 5. Add the SHA-1 fingerprint of your debug or release keystore (`keytool -list -v -keystore ...`)
-6. Paste the **Client ID** into Remarkable → Settings
+6. Paste the **Client ID** into Remarkable → Settings and set music source to Spotify
 
-Without a Client ID, the clock and weather still work.
+Without Spotify, the clock, weather, and system now-playing still work.
+
+## Last.fm setup (optional)
+
+1. Create an API account at [last.fm/api](https://www.last.fm/api)
+2. Enter API key, shared secret, and username in Settings
+3. For scrobbling: enter password once → Sign in → enable “Scrobble from device playback”
+4. Set music source to Last.fm to show profile now-playing, or keep Device and scrobble in the background
 
 ## Weather
 

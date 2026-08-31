@@ -9,7 +9,12 @@ import android.location.Location
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.miguelthemann.remarkable.lastfm.LastFmClient
 import com.miguelthemann.remarkable.location.DeviceLocation
+import com.miguelthemann.remarkable.media.MusicSource
+import com.miguelthemann.remarkable.media.MusicStatus
+import com.miguelthemann.remarkable.media.NowPlayingTrack
+import com.miguelthemann.remarkable.media.SystemMediaBus
 import com.miguelthemann.remarkable.prefs.AccentPreset
 import com.miguelthemann.remarkable.prefs.BackgroundImageStore
 import com.miguelthemann.remarkable.prefs.BackgroundMode
@@ -34,6 +39,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.ZonedDateTime
 
 data class ClockUiState(
@@ -71,9 +77,16 @@ data class ClockUiState(
     val showAlbum: Boolean = true,
     val showReleaseYear: Boolean = false,
     val weatherEffect: WeatherEffect = WeatherEffect.AUTO,
+    val musicSource: MusicSource = MusicSource.SYSTEM,
+    val lastFmApiKey: String = "",
+    val lastFmSharedSecret: String = "",
+    val lastFmUsername: String = "",
+    val lastFmSessionKey: String = "",
+    val lastFmScrobble: Boolean = false,
     val weather: WeatherSnapshot? = null,
     val weatherMessage: WeatherMessage = WeatherMessage.Idle,
-    val spotify: SpotifyStatus = SpotifyStatus.Idle,
+    val music: MusicStatus = MusicStatus.Idle,
+    val lastFmLoginMessage: String? = null,
 )
 
 sealed interface WeatherMessage {
@@ -88,12 +101,15 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     private val weatherRepository = WeatherRepository()
     private val deviceLocation = DeviceLocation(application)
     private val spotifyRemote = SpotifyRemote(application)
+    private val lastFm = LastFmClient()
 
     private val _uiState = MutableStateFlow(ClockUiState())
     val uiState: StateFlow<ClockUiState> = _uiState.asStateFlow()
 
-    private var spotifyJob: Job? = null
+    private var musicJob: Job? = null
     private var locationGranted = false
+    private var lastScrobbledKey: String? = null
+    private var scrobbleStartedAt: Long = 0L
 
     init {
         viewModelScope.launch {
@@ -104,16 +120,24 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             var lastCity: String? = null
-            var lastClientId: String? = null
+            var lastMusicKey: String? = null
             preferences.settings.collect { settings ->
                 applySettings(settings)
                 if (lastCity == null || lastCity != settings.city) {
                     lastCity = settings.city
                     refreshWeather()
                 }
-                if (lastClientId == null || lastClientId != settings.spotifyClientId) {
-                    lastClientId = settings.spotifyClientId
-                    connectSpotify()
+                val musicKey = listOf(
+                    settings.musicSource.name,
+                    settings.spotifyClientId,
+                    settings.lastFmApiKey,
+                    settings.lastFmUsername,
+                    settings.lastFmSessionKey,
+                    settings.lastFmScrobble.toString(),
+                ).joinToString("|")
+                if (lastMusicKey != musicKey) {
+                    lastMusicKey = musicKey
+                    restartMusic(settings)
                 }
             }
         }
@@ -161,7 +185,150 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                 showAlbum = settings.showAlbum,
                 showReleaseYear = settings.showReleaseYear,
                 weatherEffect = settings.weatherEffect,
+                musicSource = settings.musicSource,
+                lastFmApiKey = settings.lastFmApiKey,
+                lastFmSharedSecret = settings.lastFmSharedSecret,
+                lastFmUsername = settings.lastFmUsername,
+                lastFmSessionKey = settings.lastFmSessionKey,
+                lastFmScrobble = settings.lastFmScrobble,
             )
+        }
+    }
+
+    private fun restartMusic(settings: UserSettings) {
+        musicJob?.cancel()
+        spotifyRemote.disconnect()
+        musicJob = viewModelScope.launch {
+            when (settings.musicSource) {
+                MusicSource.SYSTEM -> collectSystemMedia(settings)
+                MusicSource.SPOTIFY -> collectSpotify(settings.spotifyClientId)
+                MusicSource.LASTFM -> collectLastFm(settings)
+            }
+        }
+    }
+
+    private suspend fun collectSystemMedia(settings: UserSettings) {
+        SystemMediaBus.refreshFrom(getApplication())
+        SystemMediaBus.status.collect { status ->
+            _uiState.update { it.copy(music = status) }
+            if (settings.lastFmScrobble &&
+                settings.lastFmSessionKey.isNotBlank() &&
+                status is MusicStatus.Ready &&
+                !status.track.isPaused
+            ) {
+                maybeScrobble(settings, status.track)
+            }
+        }
+    }
+
+    private suspend fun collectSpotify(clientId: String) {
+        if (clientId.isBlank()) {
+            _uiState.update { it.copy(music = MusicStatus.NeedSpotifySetup) }
+            return
+        }
+        spotifyRemote.connect(clientId).collect { status ->
+            _uiState.update {
+                it.copy(
+                    music = when (status) {
+                        SpotifyStatus.NeedClientId -> MusicStatus.NeedSpotifySetup
+                        SpotifyStatus.MissingApp -> MusicStatus.Failed("Spotify app missing")
+                        SpotifyStatus.Connecting, SpotifyStatus.Idle -> MusicStatus.Loading
+                        is SpotifyStatus.Failed -> MusicStatus.Failed(status.message)
+                        is SpotifyStatus.Connected -> {
+                            val np = status.nowPlaying
+                            if (np == null) MusicStatus.NothingPlaying
+                            else MusicStatus.Ready(
+                                track = NowPlayingTrack(
+                                    title = np.title,
+                                    artist = np.artist,
+                                    album = np.album,
+                                    releaseYear = np.releaseYear,
+                                    isPaused = np.isPaused,
+                                    artwork = np.artwork,
+                                    appLabel = "Spotify",
+                                ),
+                                canControl = true,
+                            )
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    private suspend fun collectLastFm(settings: UserSettings) {
+        if (settings.lastFmApiKey.isBlank() || settings.lastFmUsername.isBlank()) {
+            _uiState.update { it.copy(music = MusicStatus.NeedLastFmSetup) }
+            return
+        }
+        while (isActive) {
+            _uiState.update { it.copy(music = MusicStatus.Loading) }
+            val result = runCatching {
+                lastFm.recentTrack(settings.lastFmApiKey, settings.lastFmUsername)
+            }
+            result.fold(
+                onSuccess = { track ->
+                    _uiState.update {
+                        it.copy(
+                            music = if (track == null) {
+                                MusicStatus.NothingPlaying
+                            } else {
+                                MusicStatus.Ready(
+                                    track = NowPlayingTrack(
+                                        title = track.title,
+                                        artist = track.artist,
+                                        album = track.album,
+                                        isPaused = !track.isNowPlaying,
+                                        appLabel = "Last.fm",
+                                    ),
+                                    canControl = false,
+                                )
+                            },
+                        )
+                    }
+                },
+                onFailure = { err ->
+                    _uiState.update {
+                        it.copy(music = MusicStatus.Failed(err.message ?: err.toString()))
+                    }
+                },
+            )
+            delay(30_000)
+        }
+    }
+
+    private suspend fun maybeScrobble(settings: UserSettings, track: NowPlayingTrack) {
+        val key = "${track.artist}|${track.title}"
+        if (key != lastScrobbledKey) {
+            lastScrobbledKey = key
+            scrobbleStartedAt = Instant.now().epochSecond
+            runCatching {
+                lastFm.updateNowPlaying(
+                    apiKey = settings.lastFmApiKey,
+                    sharedSecret = settings.lastFmSharedSecret,
+                    sessionKey = settings.lastFmSessionKey,
+                    artist = track.artist,
+                    track = track.title,
+                    album = track.album,
+                )
+            }
+            return
+        }
+        val listened = Instant.now().epochSecond - scrobbleStartedAt
+        if (listened >= 30) {
+            runCatching {
+                lastFm.scrobble(
+                    apiKey = settings.lastFmApiKey,
+                    sharedSecret = settings.lastFmSharedSecret,
+                    sessionKey = settings.lastFmSessionKey,
+                    artist = track.artist,
+                    track = track.title,
+                    album = track.album,
+                    timestampSec = scrobbleStartedAt,
+                )
+            }
+            // Prevent double-scrobble spam for the same play
+            scrobbleStartedAt = Instant.now().epochSecond + 10_000
         }
     }
 
@@ -221,27 +388,69 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun refreshSystemMedia() {
+        SystemMediaBus.refreshFrom(getApplication())
+    }
+
     fun connectSpotify() {
-        spotifyJob?.cancel()
+        musicJob?.cancel()
         spotifyRemote.disconnect()
-        spotifyJob = viewModelScope.launch {
-            spotifyRemote.connect(_uiState.value.spotifyClientId).collect { status ->
-                _uiState.update { it.copy(spotify = status) }
-            }
+        musicJob = viewModelScope.launch {
+            collectSpotify(_uiState.value.spotifyClientId)
         }
     }
 
     fun playPause() {
-        val status = _uiState.value.spotify
-        if (status is SpotifyStatus.Connected && status.nowPlaying?.isPaused == false) {
-            spotifyRemote.pause()
-        } else {
-            spotifyRemote.play()
+        when (_uiState.value.musicSource) {
+            MusicSource.SYSTEM -> SystemMediaBus.playPause()
+            MusicSource.SPOTIFY -> {
+                val track = (_uiState.value.music as? MusicStatus.Ready)?.track
+                if (track?.isPaused == false) spotifyRemote.pause() else spotifyRemote.play()
+            }
+            MusicSource.LASTFM -> Unit
         }
     }
 
-    fun skipNext() = spotifyRemote.skipNext()
-    fun skipPrevious() = spotifyRemote.skipPrevious()
+    fun skipNext() {
+        when (_uiState.value.musicSource) {
+            MusicSource.SYSTEM -> SystemMediaBus.skipNext()
+            MusicSource.SPOTIFY -> spotifyRemote.skipNext()
+            MusicSource.LASTFM -> Unit
+        }
+    }
+
+    fun skipPrevious() {
+        when (_uiState.value.musicSource) {
+            MusicSource.SYSTEM -> SystemMediaBus.skipPrevious()
+            MusicSource.SPOTIFY -> spotifyRemote.skipPrevious()
+            MusicSource.LASTFM -> Unit
+        }
+    }
+
+    fun loginLastFm(password: String) {
+        viewModelScope.launch {
+            val s = _uiState.value
+            _uiState.update { it.copy(lastFmLoginMessage = null) }
+            runCatching {
+                lastFm.mobileSession(
+                    apiKey = s.lastFmApiKey,
+                    sharedSecret = s.lastFmSharedSecret,
+                    username = s.lastFmUsername,
+                    password = password,
+                )
+            }.fold(
+                onSuccess = { key ->
+                    preferences.setLastFmSessionKey(key)
+                    _uiState.update { it.copy(lastFmLoginMessage = "ok") }
+                },
+                onFailure = { err ->
+                    _uiState.update {
+                        it.copy(lastFmLoginMessage = err.message ?: err.toString())
+                    }
+                },
+            )
+        }
+    }
 
     fun completeOnboarding() = viewModelScope.launch { preferences.setOnboardingDone(true) }
 
@@ -305,11 +514,17 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { preferences.setShowReleaseYear(value) }
     fun setWeatherEffect(value: WeatherEffect) =
         viewModelScope.launch { preferences.setWeatherEffect(value) }
+    fun setMusicSource(value: MusicSource) =
+        viewModelScope.launch { preferences.setMusicSource(value) }
+    fun setLastFmApiKey(value: String) =
+        viewModelScope.launch { preferences.setLastFmApiKey(value) }
+    fun setLastFmSharedSecret(value: String) =
+        viewModelScope.launch { preferences.setLastFmSharedSecret(value) }
+    fun setLastFmUsername(value: String) =
+        viewModelScope.launch { preferences.setLastFmUsername(value) }
+    fun setLastFmScrobble(value: Boolean) =
+        viewModelScope.launch { preferences.setLastFmScrobble(value) }
 
-    /**
-     * Factory reset. Two confirmations live in the UI because one is for the brave
-     * and two is for people who have met past-them.
-     */
     fun resetEverything(onDone: () -> Unit) = viewModelScope.launch {
         BackgroundImageStore.clear(getApplication())
         preferences.clearAll()

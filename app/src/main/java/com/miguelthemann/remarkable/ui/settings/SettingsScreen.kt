@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -42,6 +44,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -55,14 +58,17 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miguelthemann.remarkable.R
+import com.miguelthemann.remarkable.media.MusicSource
 import com.miguelthemann.remarkable.overlay.ClockOverlayService
 import com.miguelthemann.remarkable.prefs.AccentPreset
 import com.miguelthemann.remarkable.prefs.BackgroundMode
@@ -74,7 +80,6 @@ import com.miguelthemann.remarkable.prefs.WeatherEffect
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
 import com.miguelthemann.remarkable.ui.theme.fromArgbLong
 import kotlinx.coroutines.delay
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +95,7 @@ fun SettingsScreen(
     var cityDirty by remember { mutableStateOf(false) }
     var clientDirty by remember { mutableStateOf(false) }
     var resetStep by remember { mutableStateOf(0) } // 0 = idle, 1 = first warn, 2 = final warn
+    var lastFmPassword by remember { mutableStateOf("") }
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent(),
     ) { uri ->
@@ -297,8 +303,156 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_reset_modules))
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_spotify_module))
+            HorizontalDivider(Modifier = Modifier.padding(vertical = 8.dp))
+            SectionTitle(stringResource(R.string.settings_music))
+            Text(
+                text = stringResource(R.string.settings_music_source_help),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .padding(vertical = 4.dp),
+            ) {
+                MusicSource.entries.forEach { source ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = state.musicSource == source,
+                                onClick = { viewModel.setMusicSource(source) },
+                                role = Role.RadioButton,
+                            )
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = state.musicSource == source,
+                            onClick = null,
+                        )
+                        Text(
+                            text = musicSourceLabel(source),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(start = 12.dp),
+                        )
+                    }
+                }
+            }
+            when (state.musicSource) {
+                MusicSource.SYSTEM -> {
+                    Text(
+                        text = stringResource(R.string.music_need_notification_access),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    TextButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+                            )
+                        },
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    ) {
+                        Text(stringResource(R.string.music_open_notification_access))
+                    }
+                }
+                MusicSource.SPOTIFY -> {
+                    OutlinedTextField(
+                        value = clientDraft,
+                        onValueChange = {
+                            clientDirty = true
+                            clientDraft = it
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        label = { Text(stringResource(R.string.settings_client_id)) },
+                        singleLine = true,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_client_id_help),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+                MusicSource.LASTFM -> {
+                    Text(
+                        text = stringResource(R.string.settings_lastfm_help),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    OutlinedTextField(
+                        value = state.lastFmApiKey,
+                        onValueChange = viewModel::setLastFmApiKey,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        label = { Text(stringResource(R.string.settings_lastfm_api_key)) },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = state.lastFmSharedSecret,
+                        onValueChange = viewModel::setLastFmSharedSecret,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        label = { Text(stringResource(R.string.settings_lastfm_shared_secret)) },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = state.lastFmUsername,
+                        onValueChange = viewModel::setLastFmUsername,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        label = { Text(stringResource(R.string.settings_lastfm_username)) },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = lastFmPassword,
+                        onValueChange = { lastFmPassword = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        label = { Text(stringResource(R.string.settings_lastfm_password)) },
+                        singleLine = true,
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.loginLastFm(lastFmPassword)
+                            lastFmPassword = ""
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        enabled = state.lastFmApiKey.isNotBlank() &&
+                            state.lastFmSharedSecret.isNotBlank() &&
+                            state.lastFmUsername.isNotBlank() &&
+                            lastFmPassword.isNotBlank(),
+                    ) {
+                        Text(stringResource(R.string.settings_lastfm_login))
+                    }
+                    if (state.lastFmSessionKey.isNotBlank()) {
+                        Text(
+                            text = stringResource(R.string.settings_lastfm_signed_in),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+                    if (state.lastFmLoginMessage != null && state.lastFmLoginMessage != "ok") {
+                        Text(
+                            text = state.lastFmLoginMessage.orEmpty(),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
             Text(
                 text = stringResource(R.string.settings_spotify_style),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -464,27 +618,6 @@ fun SettingsScreen(
                 label = { Text(stringResource(R.string.settings_city)) },
                 placeholder = { Text(stringResource(R.string.settings_city_placeholder)) },
                 singleLine = true,
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_spotify))
-            OutlinedTextField(
-                value = clientDraft,
-                onValueChange = {
-                    clientDirty = true
-                    clientDraft = it
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                label = { Text(stringResource(R.string.settings_client_id)) },
-                singleLine = true,
-            )
-            Text(
-                text = stringResource(R.string.settings_client_id_help),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -691,6 +824,15 @@ private fun spotifyStyleLabel(style: SpotifyModuleStyle): String = stringResourc
         SpotifyModuleStyle.ONE_LINER -> R.string.spotify_style_oneliner
         SpotifyModuleStyle.CARD -> R.string.spotify_style_card
         SpotifyModuleStyle.WIDGET -> R.string.spotify_style_widget
+    },
+)
+
+@Composable
+private fun musicSourceLabel(source: MusicSource): String = stringResource(
+    when (source) {
+        MusicSource.SYSTEM -> R.string.music_source_system
+        MusicSource.SPOTIFY -> R.string.music_source_spotify
+        MusicSource.LASTFM -> R.string.music_source_lastfm
     },
 )
 

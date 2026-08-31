@@ -42,10 +42,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.miguelthemann.remarkable.R
+import com.miguelthemann.remarkable.media.MusicStatus
+import com.miguelthemann.remarkable.media.NowPlayingTrack
 import com.miguelthemann.remarkable.prefs.ModuleOffsets
 import com.miguelthemann.remarkable.prefs.SpotifyModuleStyle
-import com.miguelthemann.remarkable.spotify.SpotifyNowPlaying
-import com.miguelthemann.remarkable.spotify.SpotifyStatus
 import com.miguelthemann.remarkable.weather.celsiusToFahrenheit
 import com.miguelthemann.remarkable.weather.weatherIcon
 import com.miguelthemann.remarkable.weather.weatherLabelRes
@@ -58,7 +58,7 @@ fun SpotifyModule(
     viewModel: ClockViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val playing = (state.spotify as? SpotifyStatus.Connected)?.nowPlaying
+    val playing = (state.music as? MusicStatus.Ready)?.track
     when (state.spotifyStyle) {
         SpotifyModuleStyle.ONE_LINER -> SpotifyOneLiner(state, playing, viewModel, modifier)
         SpotifyModuleStyle.CARD -> SpotifyCardStyle(state, playing, viewModel, modifier)
@@ -84,7 +84,7 @@ private fun SpotifyIconBadge(state: ClockUiState) {
 @Composable
 private fun SpotifyOneLiner(
     state: ClockUiState,
-    playing: SpotifyNowPlaying?,
+    playing: NowPlayingTrack?,
     viewModel: ClockViewModel,
     modifier: Modifier,
 ) {
@@ -117,7 +117,7 @@ private fun SpotifyOneLiner(
 @Composable
 private fun SpotifyCardStyle(
     state: ClockUiState,
-    playing: SpotifyNowPlaying?,
+    playing: NowPlayingTrack?,
     viewModel: ClockViewModel,
     modifier: Modifier,
 ) {
@@ -134,7 +134,7 @@ private fun SpotifyCardStyle(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 SpotifyIconBadge(state)
-                Text(stringResource(R.string.spotify_title), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.music_title), style = MaterialTheme.typography.titleLarge)
             }
             Spacer(Modifier.height(8.dp))
             SpotifyStatusBody(state, playing, viewModel, showArt = false)
@@ -145,7 +145,7 @@ private fun SpotifyCardStyle(
 @Composable
 private fun SpotifyWidgetStyle(
     state: ClockUiState,
-    playing: SpotifyNowPlaying?,
+    playing: NowPlayingTrack?,
     viewModel: ClockViewModel,
     modifier: Modifier,
 ) {
@@ -165,33 +165,58 @@ private fun SpotifyWidgetStyle(
 @Composable
 private fun SpotifyStatusBody(
     state: ClockUiState,
-    playing: SpotifyNowPlaying?,
+    playing: NowPlayingTrack?,
     viewModel: ClockViewModel,
     showArt: Boolean,
 ) {
-    when (val spotify = state.spotify) {
-        SpotifyStatus.NeedClientId -> Text(stringResource(R.string.spotify_need_client_id))
-        SpotifyStatus.MissingApp -> Text(stringResource(R.string.spotify_not_installed))
-        is SpotifyStatus.Failed -> {
-            Text(stringResource(R.string.spotify_error))
-            Text(spotify.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = viewModel::connectSpotify) {
-                Text(stringResource(R.string.spotify_connect))
+    when (val music = state.music) {
+        MusicStatus.NeedNotificationAccess -> {
+            Text(stringResource(R.string.music_need_notification_access))
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Button(
+                onClick = {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS,
+                        ),
+                    )
+                },
+            ) {
+                Text(stringResource(R.string.music_open_notification_access))
+            }
+            TextButton(onClick = viewModel::refreshSystemMedia) {
+                Text(stringResource(R.string.music_refresh))
             }
         }
-        SpotifyStatus.Connecting, SpotifyStatus.Idle -> {
-            Button(onClick = viewModel::connectSpotify) {
-                Text(stringResource(R.string.spotify_connect))
+        MusicStatus.NeedSpotifySetup -> Text(stringResource(R.string.spotify_need_client_id))
+        MusicStatus.NeedLastFmSetup -> Text(stringResource(R.string.lastfm_need_setup))
+        MusicStatus.NothingPlaying, MusicStatus.Idle -> {
+            Text(stringResource(R.string.spotify_idle))
+            if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SYSTEM) {
+                TextButton(onClick = viewModel::refreshSystemMedia) {
+                    Text(stringResource(R.string.music_refresh))
+                }
             }
         }
-        is SpotifyStatus.Connected -> {
+        MusicStatus.Loading -> Text(stringResource(R.string.music_loading))
+        is MusicStatus.Failed -> {
+            Text(stringResource(R.string.music_error))
+            Text(music.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SPOTIFY) {
+                Button(onClick = viewModel::connectSpotify) {
+                    Text(stringResource(R.string.spotify_connect))
+                }
+            }
+        }
+        is MusicStatus.Ready -> {
+            val track = music.track
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                if (showArt && playing?.artwork != null) {
+                if (showArt && track.artwork != null) {
                     Image(
-                        bitmap = playing.artwork.asImageBitmap(),
+                        bitmap = track.artwork.asImageBitmap(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -201,65 +226,74 @@ private fun SpotifyStatusBody(
                 } else if (showArt) {
                     SpotifyIconBadge(state)
                 }
-                Column(modifier = Modifier.weight(1f)) {
+                Column(Modifier = Modifier.weight(1f)) {
                     if (state.showTrackTitle) {
                         Text(
-                            playing?.title ?: stringResource(R.string.spotify_idle),
+                            track.title,
                             style = MaterialTheme.typography.titleLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (state.showArtist && !playing?.artist.isNullOrBlank()) {
+                    if (state.showArtist && track.artist.isNotBlank()) {
                         Text(
-                            playing?.artist.orEmpty(),
+                            track.artist,
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (state.showAlbum && !playing?.album.isNullOrBlank()) {
+                    if (state.showAlbum && track.album.isNotBlank()) {
                         Text(
-                            playing?.album.orEmpty(),
+                            track.album,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (state.showReleaseYear && !playing?.releaseYear.isNullOrBlank()) {
+                    if (state.showReleaseYear && !track.releaseYear.isNullOrBlank()) {
                         Text(
-                            playing?.releaseYear.orEmpty(),
+                            track.releaseYear,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                    if (!track.appLabel.isNullOrBlank()) {
+                        Text(
+                            track.appLabel,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.outline,
                         )
                     }
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                FilledTonalIconButton(onClick = viewModel::skipPrevious) {
-                    Icon(Icons.Outlined.SkipPrevious, contentDescription = stringResource(R.string.skip_previous))
-                }
-                FilledTonalIconButton(onClick = viewModel::playPause) {
-                    Icon(
-                        if (playing?.isPaused != false) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                        contentDescription = null,
-                    )
-                }
-                FilledTonalIconButton(onClick = viewModel::skipNext) {
-                    Icon(Icons.Outlined.SkipNext, contentDescription = stringResource(R.string.skip_next))
+            if (music.canControl) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    FilledTonalIconButton(onClick = viewModel::skipPrevious) {
+                        Icon(Icons.Outlined.SkipPrevious, contentDescription = stringResource(R.string.skip_previous))
+                    }
+                    FilledTonalIconButton(onClick = viewModel::playPause) {
+                        Icon(
+                            if (track.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                            contentDescription = null,
+                        )
+                    }
+                    FilledTonalIconButton(onClick = viewModel::skipNext) {
+                        Icon(Icons.Outlined.SkipNext, contentDescription = stringResource(R.string.skip_next))
+                    }
                 }
             }
         }
     }
 }
 
-private fun buildSpotifyLine(state: ClockUiState, playing: SpotifyNowPlaying?): String {
+private fun buildSpotifyLine(state: ClockUiState, playing: NowPlayingTrack?): String {
     if (playing == null) return "—"
     val parts = buildList {
         if (state.showTrackTitle) add(playing.title)

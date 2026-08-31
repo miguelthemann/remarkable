@@ -4,36 +4,37 @@
  */
 package com.miguelthemann.remarkable.ui
 
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavBackStackEntry
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import com.miguelthemann.remarkable.ui.clock.ClockScreen
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
-import com.miguelthemann.remarkable.ui.motion.remarkableEnterFadeScale
-import com.miguelthemann.remarkable.ui.motion.remarkableEnterForward
-import com.miguelthemann.remarkable.ui.motion.remarkableEnterPop
-import com.miguelthemann.remarkable.ui.motion.remarkableExitFadeScale
-import com.miguelthemann.remarkable.ui.motion.remarkableExitForward
-import com.miguelthemann.remarkable.ui.motion.remarkableExitPop
+import com.miguelthemann.remarkable.ui.motion.EmphasizedAccelerate
+import com.miguelthemann.remarkable.ui.motion.EmphasizedDecelerate
 import com.miguelthemann.remarkable.ui.onboarding.OnboardingScreen
 import com.miguelthemann.remarkable.ui.settings.SettingsScreen
 
-private const val ROUTE_ONBOARDING = "onboarding"
-private const val ROUTE_CLOCK = "clock"
-private const val ROUTE_SETTINGS = "settings"
-
+/**
+ * Nav without NavHost for Settings — Compose route transitions were invisible on device,
+ * so Settings is a full-screen slide overlay. Boring? Maybe. Works? Absolutely.
+ */
 @Composable
 fun RemarkableNav(viewModel: ClockViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -44,81 +45,54 @@ fun RemarkableNav(viewModel: ClockViewModel) {
         return
     }
 
-    val start = if (state.onboardingDone) ROUTE_CLOCK else ROUTE_ONBOARDING
-    val navController = rememberNavController()
+    var showSettings by remember { mutableStateOf(false) }
+    var showOnboarding by remember(state.onboardingDone) {
+        mutableStateOf(!state.onboardingDone)
+    }
 
-    // Transitions are declared on each destination too — NavHost defaults alone were too shy
-    // to notice, and per-route specs actually show up on screen. Trust issues, mostly.
-    NavHost(
-        navController = navController,
-        startDestination = start,
-        enterTransition = { defaultEnter(initialState, targetState) },
-        exitTransition = { defaultExit(initialState, targetState) },
-        popEnterTransition = { remarkableEnterPop() },
-        popExitTransition = { remarkableExitPop() },
-    ) {
-        composable(
-            route = ROUTE_ONBOARDING,
-            enterTransition = { remarkableEnterFadeScale() },
-            exitTransition = { remarkableExitFadeScale() },
-        ) {
-            OnboardingScreen(
-                onFinished = {
-                    viewModel.completeOnboarding()
-                    navController.navigate(ROUTE_CLOCK) {
-                        popUpTo(ROUTE_ONBOARDING) { inclusive = true }
-                    }
-                },
-            )
+    Box(Modifier.fillMaxSize()) {
+        when {
+            showOnboarding -> {
+                OnboardingScreen(
+                    onFinished = {
+                        viewModel.completeOnboarding()
+                        showOnboarding = false
+                    },
+                )
+            }
+            else -> {
+                ClockScreen(
+                    viewModel = viewModel,
+                    onOpenSettings = { showSettings = true },
+                )
+            }
         }
-        composable(
-            route = ROUTE_CLOCK,
-            enterTransition = { remarkableEnterFadeScale() },
-            exitTransition = { remarkableExitForward() },
-            popEnterTransition = { remarkableEnterPop() },
-            popExitTransition = { remarkableExitFadeScale() },
+
+        AnimatedVisibility(
+            visible = showSettings && !showOnboarding,
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(20f),
+            enter = slideInHorizontally(
+                animationSpec = tween(460, easing = EmphasizedDecelerate),
+                initialOffsetX = { full -> full },
+            ) + fadeIn(animationSpec = tween(280, easing = EmphasizedDecelerate)),
+            exit = slideOutHorizontally(
+                animationSpec = tween(380, easing = EmphasizedAccelerate),
+                targetOffsetX = { full -> full },
+            ) + fadeOut(animationSpec = tween(220, easing = EmphasizedAccelerate)),
         ) {
-            ClockScreen(
-                viewModel = viewModel,
-                onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
-            )
-        }
-        composable(
-            route = ROUTE_SETTINGS,
-            enterTransition = { remarkableEnterForward() },
-            exitTransition = { remarkableExitPop() },
-            popEnterTransition = { remarkableEnterForward() },
-            popExitTransition = { remarkableExitPop() },
-        ) {
-            SettingsScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() },
-                onFactoryResetDone = {
-                    navController.navigate(ROUTE_ONBOARDING) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-            )
+            BackHandler { showSettings = false }
+            Surface(modifier = Modifier.fillMaxSize()) {
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onBack = { showSettings = false },
+                    onFactoryResetDone = {
+                        showSettings = false
+                        showOnboarding = true
+                    },
+                )
+            }
         }
     }
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.defaultEnter(
-    from: NavBackStackEntry,
-    to: NavBackStackEntry,
-): EnterTransition = when {
-    from.destination.route == ROUTE_ONBOARDING && to.destination.route == ROUTE_CLOCK ->
-        remarkableEnterFadeScale()
-    to.destination.route == ROUTE_SETTINGS -> remarkableEnterForward()
-    else -> remarkableEnterFadeScale()
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.defaultExit(
-    from: NavBackStackEntry,
-    to: NavBackStackEntry,
-): ExitTransition = when {
-    from.destination.route == ROUTE_ONBOARDING && to.destination.route == ROUTE_CLOCK ->
-        remarkableExitFadeScale()
-    to.destination.route == ROUTE_SETTINGS -> remarkableExitForward()
-    else -> remarkableExitFadeScale()
 }
