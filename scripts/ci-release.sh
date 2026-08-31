@@ -99,8 +99,25 @@ write_changelog() {
   local codename="$2"
   local code="$3"
   local prev_tag=""
+  local -a vers=()
+  local i
 
-  prev_tag="$(git tag -l 'v*' --sort=-v:refname | grep -vE "^v${name}$" | head -n1 || true)"
+  # Previous release = highest semver tag strictly below this version
+  # (ignores leftover higher tags from mistaken CI runs).
+  mapfile -t vers < <(
+    {
+      git tag -l 'v*' | sed 's/^v//'
+      echo "$name"
+    } | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -u -V
+  )
+  for i in "${!vers[@]}"; do
+    if [[ "${vers[$i]}" == "$name" ]]; then
+      if (( i > 0 )); then
+        prev_tag="v${vers[$((i - 1))]}"
+      fi
+      break
+    fi
+  done
 
   {
     echo "## Remarkable ${name} · ${codename}"
@@ -115,19 +132,32 @@ write_changelog() {
       echo "_Changes since ${prev_tag}_"
       echo
     else
-      range="$(git rev-list --max-count=30 HEAD | tail -n1)..HEAD"
-      echo "_Initial release notes_"
+      echo "_Initial release_"
       echo
+      range=""
     fi
-    log="$(git log "$range" --pretty=format:'* %s (%h)' --no-merges 2>/dev/null || true)"
+    if [[ -n "$range" ]]; then
+      log="$(
+        git log "$range" --pretty=format:'* %s (%h)' --no-merges \
+          --invert-grep --grep='\[skip ci\]' --grep='^chore(release)' \
+          2>/dev/null || true
+      )"
+    else
+      log=""
+    fi
     if [[ -z "${log// }" ]]; then
-      echo "* Build and packaging updates"
+      if [[ -z "$prev_tag" ]]; then
+        echo "* First public build of Remarkable"
+      else
+        echo "* Maintenance and packaging updates"
+      fi
     else
       echo "$log"
     fi
     echo
     echo "---"
-    echo "Install the APKs below (debug or release), or open this page from Remarkable → Settings when an update is offered."
+    echo "Assets: \`remarkable-${name}-debug.apk\` and \`remarkable-${name}-release.apk\`."
+    echo "Install from here, or open this page from Remarkable → Settings when an update is offered."
   } > "$OUT_DIR/CHANGELOG.md"
 }
 
