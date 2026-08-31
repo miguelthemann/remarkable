@@ -4,8 +4,7 @@
  */
 package com.miguelthemann.remarkable.ui.clock
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
@@ -13,9 +12,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -27,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -61,6 +60,7 @@ fun DraggableModule(
     var drag by remember { mutableStateOf(Offset.Zero) }
     var liveScale by remember(scale) { mutableFloatStateOf(scale) }
     val density = LocalDensity.current
+    val moduleColors = LocalDeskModuleColors.current
 
     val displayScale = if (editMode) liveScale * 1.02f else liveScale
 
@@ -109,11 +109,6 @@ fun DraggableModule(
                     if (editMode) {
                         Modifier
                             .shadow(12.dp, RoundedCornerShape(20.dp))
-                            .border(
-                                2.dp,
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
-                                RoundedCornerShape(20.dp),
-                            )
                             .clip(RoundedCornerShape(20.dp))
                     } else {
                         Modifier
@@ -150,8 +145,10 @@ fun DraggableModule(
 
         if (editMode) {
             val sensitivity = with(density) { 180.dp.toPx() }
+            val accent = moduleColors.accent
             ResizeHandle(
-                alignment = Alignment.TopStart,
+                corner = ResizeCorner.TopStart,
+                accent = accent,
                 onResize = { amount ->
                     val delta = (-amount.x - amount.y) / sensitivity
                     liveScale = (liveScale + delta)
@@ -160,7 +157,8 @@ fun DraggableModule(
                 onResizeEnd = { commitScale() },
             )
             ResizeHandle(
-                alignment = Alignment.TopEnd,
+                corner = ResizeCorner.TopEnd,
+                accent = accent,
                 onResize = { amount ->
                     val delta = (amount.x - amount.y) / sensitivity
                     liveScale = (liveScale + delta)
@@ -169,7 +167,8 @@ fun DraggableModule(
                 onResizeEnd = { commitScale() },
             )
             ResizeHandle(
-                alignment = Alignment.BottomStart,
+                corner = ResizeCorner.BottomStart,
+                accent = accent,
                 onResize = { amount ->
                     val delta = (-amount.x + amount.y) / sensitivity
                     liveScale = (liveScale + delta)
@@ -178,7 +177,8 @@ fun DraggableModule(
                 onResizeEnd = { commitScale() },
             )
             ResizeHandle(
-                alignment = Alignment.BottomEnd,
+                corner = ResizeCorner.BottomEnd,
+                accent = accent,
                 onResize = { amount ->
                     val delta = (amount.x + amount.y) / sensitivity
                     liveScale = (liveScale + delta)
@@ -190,31 +190,40 @@ fun DraggableModule(
     }
 }
 
+private enum class ResizeCorner {
+    TopStart, TopEnd, BottomStart, BottomEnd,
+}
+
 @Composable
 private fun BoxScope.ResizeHandle(
-    alignment: Alignment,
+    corner: ResizeCorner,
+    accent: Color,
     onResize: (Offset) -> Unit,
     onResizeEnd: () -> Unit,
 ) {
-    val color = MaterialTheme.colorScheme.primary
-    val half = with(LocalDensity.current) { 14.dp.roundToPx() }
+    val alignment = when (corner) {
+        ResizeCorner.TopStart -> Alignment.TopStart
+        ResizeCorner.TopEnd -> Alignment.TopEnd
+        ResizeCorner.BottomStart -> Alignment.BottomStart
+        ResizeCorner.BottomEnd -> Alignment.BottomEnd
+    }
+    val contentAlignment = alignment
+    val inset = with(LocalDensity.current) { 6.dp.roundToPx() }
+
     Box(
         modifier = Modifier
             .align(alignment)
             .offset {
-                when (alignment) {
-                    Alignment.TopStart -> IntOffset(-half, -half)
-                    Alignment.TopEnd -> IntOffset(half, -half)
-                    Alignment.BottomStart -> IntOffset(-half, half)
-                    else -> IntOffset(half, half)
+                when (corner) {
+                    ResizeCorner.TopStart -> IntOffset(-inset, -inset)
+                    ResizeCorner.TopEnd -> IntOffset(inset, -inset)
+                    ResizeCorner.BottomStart -> IntOffset(-inset, inset)
+                    ResizeCorner.BottomEnd -> IntOffset(inset, inset)
                 }
             }
-            .size(28.dp)
+            .size(36.dp)
             .zIndex(20f)
-            .clip(CircleShape)
-            .background(color)
-            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-            .pointerInput(Unit) {
+            .pointerInput(corner) {
                 detectDragGestures(
                     onDragEnd = { onResizeEnd() },
                     onDragCancel = { onResizeEnd() },
@@ -224,5 +233,53 @@ private fun BoxScope.ResizeHandle(
                     },
                 )
             },
-    )
+        contentAlignment = contentAlignment,
+    ) {
+        Canvas(Modifier.size(20.dp)) {
+            val stroke = 2.5f.dp.toPx()
+            val len = size.minDimension
+            val halo = accent.copy(alpha = 0.35f)
+            val line = accent.copy(alpha = 0.95f)
+            val cap = StrokeCap.Round
+
+            fun drawL(
+                hStart: Offset,
+                hEnd: Offset,
+                vStart: Offset,
+                vEnd: Offset,
+            ) {
+                drawLine(halo, hStart, hEnd, stroke * 2.4f, cap)
+                drawLine(halo, vStart, vEnd, stroke * 2.4f, cap)
+                drawLine(line, hStart, hEnd, stroke, cap)
+                drawLine(line, vStart, vEnd, stroke, cap)
+            }
+
+            when (corner) {
+                ResizeCorner.TopStart -> drawL(
+                    Offset(0f, stroke / 2f),
+                    Offset(len, stroke / 2f),
+                    Offset(stroke / 2f, 0f),
+                    Offset(stroke / 2f, len),
+                )
+                ResizeCorner.TopEnd -> drawL(
+                    Offset(0f, stroke / 2f),
+                    Offset(len, stroke / 2f),
+                    Offset(len - stroke / 2f, 0f),
+                    Offset(len - stroke / 2f, len),
+                )
+                ResizeCorner.BottomStart -> drawL(
+                    Offset(0f, len - stroke / 2f),
+                    Offset(len, len - stroke / 2f),
+                    Offset(stroke / 2f, 0f),
+                    Offset(stroke / 2f, len),
+                )
+                ResizeCorner.BottomEnd -> drawL(
+                    Offset(0f, len - stroke / 2f),
+                    Offset(len, len - stroke / 2f),
+                    Offset(len - stroke / 2f, 0f),
+                    Offset(len - stroke / 2f, len),
+                )
+            }
+        }
+    }
 }

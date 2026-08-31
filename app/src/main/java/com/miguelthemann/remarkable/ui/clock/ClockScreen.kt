@@ -263,7 +263,7 @@ fun DeskClockContent(
                     .zIndex(10f)
                     .padding(top = 36.dp)
                     .background(
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        moduleColors.surface,
                         RoundedCornerShape(24.dp),
                     )
                     .padding(horizontal = 12.dp, vertical = 4.dp),
@@ -272,10 +272,14 @@ fun DeskClockContent(
                 Text(
                     text = stringResource(R.string.layout_edit_hint),
                     style = MaterialTheme.typography.labelLarge,
+                    color = moduleColors.onSurface,
                     modifier = Modifier.padding(start = 8.dp),
                 )
                 TextButton(onClick = { layoutEditMode = false }) {
-                    Text(stringResource(R.string.layout_edit_done))
+                    Text(
+                        stringResource(R.string.layout_edit_done),
+                        color = moduleColors.accent,
+                    )
                 }
             }
         }

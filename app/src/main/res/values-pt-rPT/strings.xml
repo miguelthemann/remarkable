@@ -124,7 +124,7 @@
     <string name="toast_no_widgets">Sem widgets? Para quê a app?</string>
     <string name="settings_modules">Disposição dos módulos</string>
     <string name="settings_modules_help">Desloca cada módulo para ajustar a composição ao teu ecrã.</string>
-    <string name="settings_modules_drag_help">No ecrã do relógio, mantém premido um módulo e arrasta-o. Em edição, arrasta os cantos para redimensionar. Mantém premido o fundo vazio para Definições.</string>
+    <string name="settings_modules_drag_help">No ecrã do relógio, mantém premido um módulo e arrasta-o. Mantém premido o fundo vazio para Definições.</string>
     <string name="settings_spotify_module">Módulo Spotify</string>
     <string name="settings_spotify_style">Estilo</string>
     <string name="spotify_style_oneliner">Uma linha</string>
@@ -152,7 +152,7 @@
     <string name="onboarding_permissions_body">A localização (opcional) alimenta o tempo local. As notificações só são precisas se ativares a sobreposição flutuante mais tarde.</string>
     <string name="onboarding_howto_title">Como usar</string>
     <string name="onboarding_howto_body">Mantém premido o fundo vazio para abrir as Definições.\nMantém premido um módulo (hora, data, meteorologia, Spotify) e arrasta para o mover.\nToca em Concluir quando terminares de rearranjar.</string>
-    <string name="layout_edit_hint">Mover · cantos redimensionam · Concluir</string>
+    <string name="layout_edit_hint">Arrasta para mover</string>
     <string name="layout_edit_done">Concluir</string>
     <string name="onboarding_next">Continuar</string>
     <string name="onboarding_grant">Permitir</string>
