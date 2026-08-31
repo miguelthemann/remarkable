@@ -421,6 +421,9 @@ private fun MusicSettings(state: ClockUiState, viewModel: ClockViewModel, contex
                 }
             }
             MusicSource.SPOTIFY -> {
+                SettingsHint(stringResource(R.string.settings_client_id_help))
+                SettingsHint(stringResource(R.string.settings_spotify_redirect_uri))
+                SettingsHint(stringResource(R.string.settings_spotify_package))
                 OutlinedTextField(
                     value = clientDraft,
                     onValueChange = { clientDirty = true; clientDraft = it },
@@ -428,7 +431,6 @@ private fun MusicSettings(state: ClockUiState, viewModel: ClockViewModel, contex
                     label = { Text(stringResource(R.string.settings_client_id)) },
                     singleLine = true,
                 )
-                SettingsHint(stringResource(R.string.settings_client_id_help))
             }
             MusicSource.LASTFM -> {
                 SettingsHint(stringResource(R.string.settings_lastfm_help))

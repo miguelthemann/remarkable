@@ -58,7 +58,9 @@
     <string name="settings_city_placeholder">Lisboa</string>
     <string name="settings_spotify">Spotify</string>
     <string name="settings_client_id">Client ID</string>
-    <string name="settings_client_id_help">Cria uma app em developer.spotify.com/dashboard. No portal define o pacote Android com.miguelthemann.remarkable, o URI de redirecionamento remarkable://callback e a impressão digital SHA-1 de debug ou release (keytool -list -v -keystore …).</string>
+    <string name="settings_client_id_help">Em developer.spotify.com/dashboard → Create app:\n• App name: Remarkable (ou outro nome)\n• App description: qualquer texto (obrigatório)\n• Website: opcional\n• Redirect URIs: adiciona remarkable://callback e carrega em Add\n• APIs/SDKs: marca Android\n• Aceita os termos e grava\nDepois de criar a app, abre Settings → secção Android e define:\n• Package name: com.miguelthemann.remarkable\n• SHA-1 fingerprint: do teu keystore debug/release (keytool -list -v -keystore …)\nCola o Client ID abaixo.</string>
+    <string name="settings_spotify_redirect_uri">Redirect URI: remarkable://callback</string>
+    <string name="settings_spotify_package">Pacote Android: com.miguelthemann.remarkable</string>
     <string name="settings_accent_custom">Destaque personalizado</string>
     <string name="settings_color_picker_title">Escolher cor</string>
     <string name="settings_color_done">Concluir</string>
