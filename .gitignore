@@ -20,3 +20,4 @@ keystore.properties
 !debug.keystore
 /app/keystore/
 compile-out.txt
+.vscode

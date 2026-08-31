@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -16,15 +18,19 @@ android {
 
     // Optional release signing from env (CI secrets) or local keystore.properties.
     // Never commit keystores or passwords.
-    val releaseStoreFile = System.getenv("REMARKABLE_STORE_FILE")?.let { file(it) }
+    val releaseStoreFile = System.getenv("REMARKABLE_STORE_FILE")?.let { envPath -> file(envPath) }
     val localSigningProps = rootProject.file("keystore.properties")
-    val signingProps = java.util.Properties().apply {
+    val signingProps = Properties().apply {
         if (localSigningProps.exists()) {
-            localSigningProps.inputStream().use { load(it) }
+            localSigningProps.inputStream().use { stream ->
+                load(stream)
+            }
         }
     }
     val resolvedStoreFile = releaseStoreFile
-        ?: signingProps.getProperty("storeFile")?.let { rootProject.file(it) }
+        ?: signingProps.getProperty("storeFile")?.let { filePath ->
+            rootProject.file(filePath)
+        }
     val hasReleaseSigning = resolvedStoreFile != null && resolvedStoreFile.exists()
 
     signingConfigs {
@@ -37,8 +43,8 @@ android {
                     ?: signingProps.getProperty("keyAlias")
                 keyPassword = System.getenv("REMARKABLE_KEY_PASSWORD")
                     ?: signingProps.getProperty("keyPassword")
-                System.getenv("REMARKABLE_STORE_TYPE")?.let { storeType = it }
-                    ?: signingProps.getProperty("storeType")?.let { storeType = it }
+                storeType = System.getenv("REMARKABLE_STORE_TYPE")
+                    ?: signingProps.getProperty("storeType")
             }
         }
     }
