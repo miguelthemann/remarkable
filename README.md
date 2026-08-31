@@ -50,9 +50,17 @@ sudo apt install --no-install-recommends openjdk-17-jdk git wget unzip android-s
 
 **Fedora**
 
+O OpenJDK 17 da distro (`java-17-openjdk-devel`) foi retirado a partir do Fedora 42; no Fedora 44 também já não há `java-21-openjdk`. O JDK do sistema é o 25, que não serve para este projeto (Gradle 8.9 / AGP 8.7).
+
+Instala o JDK 17 do Eclipse Temurin, pelo repositório que o Fedora fornece:
+
 ```bash
-sudo dnf install java-17-openjdk-devel git wget unzip android-tools
+sudo dnf install git wget unzip android-tools
+sudo dnf install adoptium-temurin-java-repository
+sudo dnf install temurin-17-jdk
 ```
+
+Se `dnf` ainda não vir o `temurin-17-jdk`, ativa repositórios de terceiros (`fedora-third-party enable` / Software → Repositórios) e volta a tentar.
 
 **Arch Linux**
 
@@ -72,8 +80,9 @@ Define `JAVA_HOME` se o Gradle não encontrar o 17 (ajusta o caminho se o teu si
 # Debian / Ubuntu
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 
-# Fedora
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+# Fedora (Temurin 17; confirma com: ls /usr/lib/jvm)
+export JAVA_HOME=/usr/lib/jvm/java-17-temurin-jdk
+# algumas instalações usam: /usr/lib/jvm/temurin-17-jdk
 
 # Arch Linux
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
