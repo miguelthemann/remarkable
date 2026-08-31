@@ -18,71 +18,87 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.miguelthemann.remarkable.prefs.WeatherEffect
-import com.miguelthemann.remarkable.weather.WeatherSnapshot
-import java.time.ZonedDateTime
 import kotlin.math.PI
-import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Samsung Peaks–inspired full-bleed weather scene: moving sun, drifting clouds,
- * rain / snow / thunder particles driven by weather code or a manual override.
+ * Samsung Peaks–inspired weather scene.
+ *
+ * Takes [hourOfDay] (not a full timestamp) so 250ms clock ticks do not invalidate this
+ * composition. Animation advances on the render clock via [withFrameNanos].
+ * If this looks smooth, that is luck + spite. If it doesn't, blame the particles.
  */
 @Composable
 fun PeaksWeatherScene(
-    now: ZonedDateTime,
-    weather: WeatherSnapshot?,
+    hourOfDay: Float,
+    weatherCode: Int?,
     effectOverride: WeatherEffect,
     modifier: Modifier = Modifier,
 ) {
-    val effect = remember(effectOverride, weather?.weatherCode) {
-        resolveEffect(effectOverride, weather?.weatherCode)
+    val effect = remember(effectOverride, weatherCode) {
+        resolveEffect(effectOverride, weatherCode)
     }
-    var t by remember { mutableFloatStateOf(0f) }
+    // Stable across seconds within the same minute when parent passes hour+minute/60.
+    val hour = remember(hourOfDay) { hourOfDay }
+
+    var timeSec by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
-            withFrameNanos { frame ->
+            withFrameNanos { now ->
                 if (last != 0L) {
-                    t += ((frame - last) / 1_000_000_000f).coerceIn(0f, 0.05f)
+                    timeSec += (now - last) / 1_000_000_000f
                 }
-                last = frame
+                last = now
             }
         }
     }
 
-    val hour = now.hour + now.minute / 60f
-    val clouds = remember { List(7) { CloudSeed(it) } }
-    val drops = remember { List(70) { ParticleSeed(it * 17) } }
-    val flakes = remember { List(55) { ParticleSeed(it * 31 + 3) } }
+    val clouds = remember { List(5) { CloudSeed(it) } }
+    val drops = remember { List(36) { ParticleSeed(it * 17) } }
+    val flakes = remember { List(28) { ParticleSeed(it * 31 + 3) } }
 
     Canvas(modifier = modifier.fillMaxSize()) {
+        val t = timeSec
         drawSky(hour, effect)
         if (effect != WeatherEffect.NONE && effect != WeatherEffect.FOG) {
             drawSun(hour, t, effect)
         }
-        if (effect == WeatherEffect.FOG || effect == WeatherEffect.CLOUDY ||
-            effect == WeatherEffect.RAIN || effect == WeatherEffect.SNOW ||
-            effect == WeatherEffect.THUNDER
-        ) {
-            drawClouds(clouds, t, effect)
+        when (effect) {
+            WeatherEffect.CLEAR -> drawClouds(clouds, t, effect)
+            WeatherEffect.CLOUDY, WeatherEffect.RAIN, WeatherEffect.SNOW,
+            WeatherEffect.THUNDER, WeatherEffect.FOG,
+            -> drawClouds(clouds, t, effect)
+            else -> Unit
         }
-        if (effect == WeatherEffect.RAIN || effect == WeatherEffect.THUNDER) {
-            drawRain(drops, t)
+        when (effect) {
+            WeatherEffect.RAIN, WeatherEffect.THUNDER -> drawRain(drops, t)
+            WeatherEffect.SNOW -> drawSnow(flakes, t)
+            else -> Unit
         }
-        if (effect == WeatherEffect.SNOW) {
-            drawSnow(flakes, t)
-        }
-        if (effect == WeatherEffect.THUNDER) {
-            drawLightning(t)
-        }
-        if (effect == WeatherEffect.FOG) {
-            drawFog(t)
-        }
+        if (effect == WeatherEffect.THUNDER) drawLightning(t)
+        if (effect == WeatherEffect.FOG) drawFog(t)
     }
+}
+
+/** Backward-compatible overload used by older call sites. */
+@Composable
+fun PeaksWeatherScene(
+    now: java.time.ZonedDateTime,
+    weather: com.miguelthemann.remarkable.weather.WeatherSnapshot?,
+    effectOverride: WeatherEffect,
+    modifier: Modifier = Modifier,
+) {
+    PeaksWeatherScene(
+        hourOfDay = now.hour + now.minute / 60f,
+        weatherCode = weather?.weatherCode,
+        effectOverride = effectOverride,
+        modifier = modifier,
+    )
 }
 
 fun resolveEffect(override: WeatherEffect, code: Int?): WeatherEffect {
@@ -102,14 +118,14 @@ fun resolveEffect(override: WeatherEffect, code: Int?): WeatherEffect {
 private data class CloudSeed(val i: Int) {
     val yFrac = 0.12f + (i % 5) * 0.07f
     val size = 0.10f + (i % 3) * 0.04f
-    val speed = 0.015f + (i % 4) * 0.008f
+    val speed = 0.018f + (i % 4) * 0.008f
     val phase = i * 0.37f
 }
 
 private data class ParticleSeed(val seed: Int) {
     val xFrac = Random(seed).nextFloat()
-    val speed = 0.25f + Random(seed + 1).nextFloat() * 0.55f
-    val len = 8f + Random(seed + 2).nextFloat() * 18f
+    val speed = 0.35f + Random(seed + 1).nextFloat() * 0.55f
+    val len = 10f + Random(seed + 2).nextFloat() * 16f
     val drift = (Random(seed + 3).nextFloat() - 0.5f) * 0.08f
 }
 
@@ -127,28 +143,21 @@ private fun skyColors(hour: Float, effect: WeatherEffect): Pair<Color, Color> {
         else -> Color(0xFF1A237E) to Color(0xFF0D1B2A)
     }
     return when (effect) {
-        WeatherEffect.RAIN, WeatherEffect.THUNDER ->
-            Color(0xFF546E7A) to Color(0xFF263238)
-        WeatherEffect.SNOW ->
-            Color(0xFF90A4AE) to Color(0xFFCFD8DC)
-        WeatherEffect.FOG ->
-            Color(0xFFB0BEC5) to Color(0xFF78909C)
-        WeatherEffect.CLOUDY ->
-            Color(0xFF90A4AE).copy(alpha = 0.85f).let { c ->
-                Color(0xFF78909C) to base.second
-            }
+        WeatherEffect.RAIN, WeatherEffect.THUNDER -> Color(0xFF546E7A) to Color(0xFF263238)
+        WeatherEffect.SNOW -> Color(0xFF90A4AE) to Color(0xFFCFD8DC)
+        WeatherEffect.FOG -> Color(0xFFB0BEC5) to Color(0xFF78909C)
+        WeatherEffect.CLOUDY -> Color(0xFF78909C) to base.second
         else -> base
     }
 }
 
 private fun DrawScope.drawSun(hour: Float, t: Float, effect: WeatherEffect) {
-    // Arc across the sky from ~6h to ~20h
     val day = ((hour - 6f) / 14f).coerceIn(0f, 1f)
     val x = size.width * (0.12f + day * 0.76f)
     val y = size.height * (0.55f - sin(day * PI).toFloat() * 0.42f)
-    val pulse = 1f + 0.03f * sin(t * 1.2f)
+    val pulse = 1f + 0.025f * sin(t * 1.2f)
     val radius = size.minDimension * 0.07f * pulse
-    val glow = if (effect == WeatherEffect.CLEAR) 0.45f else 0.22f
+    val glow = if (effect == WeatherEffect.CLEAR) 0.45f else 0.2f
     drawCircle(Color(0xFFFFF59D).copy(alpha = glow), radius * 2.4f, Offset(x, y))
     drawCircle(Color(0xFFFFEE58), radius * 1.35f, Offset(x, y))
     drawCircle(Color(0xFFFFFDE7), radius, Offset(x, y))
@@ -156,9 +165,9 @@ private fun DrawScope.drawSun(hour: Float, t: Float, effect: WeatherEffect) {
 
 private fun DrawScope.drawClouds(clouds: List<CloudSeed>, t: Float, effect: WeatherEffect) {
     val alpha = when (effect) {
-        WeatherEffect.CLEAR -> 0.25f
-        WeatherEffect.CLOUDY, WeatherEffect.FOG -> 0.75f
-        else -> 0.55f
+        WeatherEffect.CLEAR -> 0.22f
+        WeatherEffect.CLOUDY, WeatherEffect.FOG -> 0.72f
+        else -> 0.5f
     }
     val color = Color.White.copy(alpha = alpha)
     clouds.forEach { c ->
@@ -173,49 +182,44 @@ private fun DrawScope.drawClouds(clouds: List<CloudSeed>, t: Float, effect: Weat
 }
 
 private fun DrawScope.drawRain(drops: List<ParticleSeed>, t: Float) {
-    val color = Color(0xFFBBDEFB).copy(alpha = 0.7f)
+    val color = Color(0xFFBBDEFB).copy(alpha = 0.65f)
     drops.forEach { d ->
-        val y = ((d.xFrac * 0.3f + t * d.speed) % 1.2f) * size.height
-        val x = (d.xFrac + t * d.drift) * size.width
+        val y = ((d.xFrac * 0.3f + t * d.speed * 0.45f) % 1.2f) * size.height
+        val x = (d.xFrac + t * d.drift * 0.05f).mod(1f) * size.width
         drawLine(
             color = color,
             start = Offset(x, y),
-            end = Offset(x - 4f, y + d.len),
-            strokeWidth = 2.2f,
+            end = Offset(x - 3.5f, y + d.len),
+            strokeWidth = 2f,
+            cap = StrokeCap.Round,
         )
     }
 }
 
 private fun DrawScope.drawSnow(flakes: List<ParticleSeed>, t: Float) {
-    val color = Color.White.copy(alpha = 0.9f)
+    val color = Color.White.copy(alpha = 0.88f)
     flakes.forEach { d ->
-        val y = ((d.xFrac * 0.4f + t * d.speed * 0.35f) % 1.15f) * size.height
-        val x = (d.xFrac + sin(t * 1.4f + d.seed) * 0.03f + t * d.drift * 0.4f) *
-            size.width
-        drawCircle(color, 2.5f + (d.seed % 4), Offset(x, y))
+        val y = ((d.xFrac * 0.4f + t * d.speed * 0.12f) % 1.15f) * size.height
+        val x = (d.xFrac + sin(t * 0.9f + d.seed) * 0.03f + t * d.drift * 0.04f).mod(1f) * size.width
+        drawCircle(color, 2.2f + (d.seed % 3), Offset(x, y))
     }
 }
 
 private fun DrawScope.drawLightning(t: Float) {
-    val flash = sin(t * 7f)
-    if (flash > 0.92f) {
-        drawRect(Color.White.copy(alpha = (flash - 0.92f) * 4f))
+    val flash = sin(t * 3.2f)
+    if (flash > 0.93f) {
+        drawRect(Color.White.copy(alpha = ((flash - 0.93f) * 5f).coerceIn(0f, 0.35f)))
         val path = Path().apply {
             moveTo(size.width * 0.55f, 0f)
             lineTo(size.width * 0.48f, size.height * 0.28f)
             lineTo(size.width * 0.58f, size.height * 0.28f)
             lineTo(size.width * 0.42f, size.height * 0.62f)
         }
-        drawPath(path, Color(0xFFE3F2FD).copy(alpha = 0.85f))
+        drawPath(path, Color(0xFFE3F2FD).copy(alpha = 0.8f))
     }
 }
 
 private fun DrawScope.drawFog(t: Float) {
-    val a = 0.18f + 0.05f * sin(t * 0.6f)
+    val a = 0.16f + 0.04f * sin(t * 0.4f)
     drawRect(Color.White.copy(alpha = a))
-    drawRect(
-        Brush.verticalGradient(
-            listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent),
-        ),
-    )
 }

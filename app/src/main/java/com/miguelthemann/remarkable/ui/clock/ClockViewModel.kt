@@ -306,6 +306,16 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     fun setWeatherEffect(value: WeatherEffect) =
         viewModelScope.launch { preferences.setWeatherEffect(value) }
 
+    /**
+     * Factory reset. Two confirmations live in the UI because one is for the brave
+     * and two is for people who have met past-them.
+     */
+    fun resetEverything(onDone: () -> Unit) = viewModelScope.launch {
+        BackgroundImageStore.clear(getApplication())
+        preferences.clearAll()
+        onDone()
+    }
+
     override fun onCleared() {
         spotifyRemote.disconnect()
         super.onCleared()

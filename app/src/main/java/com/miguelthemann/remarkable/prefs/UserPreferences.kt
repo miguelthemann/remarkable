@@ -54,7 +54,10 @@ enum class CustomBgPreset(val argb: Long) {
     CHARCOAL(0xFF455A64),
 }
 
-/** Module centres as fractions of the screen (0–1). */
+/**
+ * Module centres as fractions of the screen (0–1).
+ * I don't know why we used fractions instead of dp either, but it survives rotation so gg.
+ */
 data class ModuleOffsets(
     val timeX: Float = 0.5f,
     val timeY: Float = 0.30f,
@@ -281,4 +284,9 @@ class UserPreferences(private val context: Context) {
         context.dataStore.edit { it[showReleaseYear] = value }
     suspend fun setWeatherEffect(value: WeatherEffect) =
         context.dataStore.edit { it[weatherEffect] = value.name }
+
+    /** Yeets every preference into the void. Defaults crawl back from the enum graveyard. */
+    suspend fun clearAll() {
+        context.dataStore.edit { it.clear() }
+    }
 }

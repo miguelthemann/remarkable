@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -29,7 +30,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -48,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -77,6 +81,7 @@ import kotlinx.coroutines.delay
 fun SettingsScreen(
     viewModel: ClockViewModel,
     onBack: () -> Unit,
+    onFactoryResetDone: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -84,6 +89,7 @@ fun SettingsScreen(
     var clientDraft by remember { mutableStateOf(state.spotifyClientId) }
     var cityDirty by remember { mutableStateOf(false) }
     var clientDirty by remember { mutableStateOf(false) }
+    var resetStep by remember { mutableStateOf(0) } // 0 = idle, 1 = first warn, 2 = final warn
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent(),
     ) { uri ->
@@ -488,8 +494,121 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SectionTitle(stringResource(R.string.settings_danger_zone))
+            Text(
+                text = stringResource(R.string.settings_reset_all_help),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            OutlinedButton(
+                onClick = { resetStep = 1 },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Text(stringResource(R.string.settings_reset_all))
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
+
+    if (resetStep == 1) {
+        ResetConfirmDialog(
+            title = stringResource(R.string.settings_reset_confirm1_title),
+            body = stringResource(R.string.settings_reset_confirm1_body),
+            destructive = false,
+            onConfirm = { resetStep = 2 },
+            onDismiss = { resetStep = 0 },
+        )
+    }
+
+    if (resetStep == 2) {
+        ResetConfirmDialog(
+            title = stringResource(R.string.settings_reset_confirm2_title),
+            body = stringResource(R.string.settings_reset_confirm2_body),
+            destructive = true,
+            onConfirm = {
+                resetStep = 0
+                context.stopService(Intent(context, ClockOverlayService::class.java))
+                viewModel.resetEverything {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_reset_success),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    onFactoryResetDone()
+                }
+            },
+            onDismiss = { resetStep = 0 },
+        )
+    }
+}
+
+/**
+ * Two-step factory reset gate. The confirm button naps for 3 seconds so
+ * rage-taps don't yeet your Spotify Client ID into the sun.
+ */
+@Composable
+private fun ResetConfirmDialog(
+    title: String,
+    body: String,
+    destructive: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var secondsLeft by remember { mutableIntStateOf(3) }
+    LaunchedEffect(Unit) {
+        while (secondsLeft > 0) {
+            delay(1_000)
+            secondsLeft--
+        }
+    }
+    val ready = secondsLeft == 0
+    val label = if (ready) {
+        stringResource(R.string.settings_reset_action)
+    } else {
+        stringResource(R.string.settings_reset_action_countdown, secondsLeft)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(body) },
+        confirmButton = {
+            if (destructive) {
+                Button(
+                    onClick = onConfirm,
+                    enabled = ready,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                        disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.38f),
+                        disabledContentColor = MaterialTheme.colorScheme.onError.copy(alpha = 0.6f),
+                    ),
+                ) {
+                    Text(label)
+                }
+            } else {
+                TextButton(
+                    onClick = onConfirm,
+                    enabled = ready,
+                ) {
+                    Text(label)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_reset_cancel))
+            }
+        },
+    )
 }
 
 @Composable
@@ -523,9 +642,13 @@ private fun ToggleRow(
     onCheckedChange: (Boolean) -> Unit,
 ) {
     ListItem(
+        modifier = Modifier.clickable { onCheckedChange(!checked) },
         headlineContent = { Text(title) },
         trailingContent = {
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+            )
         },
     )
 }

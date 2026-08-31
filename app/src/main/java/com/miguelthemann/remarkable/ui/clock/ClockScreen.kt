@@ -8,17 +8,22 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,13 +32,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.miguelthemann.remarkable.R
 import com.miguelthemann.remarkable.prefs.BackgroundMode
 import com.miguelthemann.remarkable.prefs.ClockStyle
 import com.miguelthemann.remarkable.prefs.ThemeMode
@@ -103,24 +111,21 @@ fun DeskClockContent(
         darkTheme = dark || state.nightDim,
     )
 
-    var parentSize by remember { mutableStateOf(IntSize.Zero) }
+    var layoutEditMode by remember { mutableStateOf(false) }
+    // Non-snapshot map: updated from layout, read on long-press (avoids recomposition storms).
+    // I don't know how this works but it does so gg.
+    val moduleBounds = remember { mutableMapOf<DeskModule, Rect>() }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .then(if (immersive) Modifier else Modifier.systemBarsPadding())
-            .onSizeChanged { parentSize = it }
-            .pointerInput(onOpenSettings) {
-                if (onOpenSettings == null) return@pointerInput
-                detectTapGestures(onLongPress = { onOpenSettings() })
-            },
+            .then(if (immersive) Modifier else Modifier.systemBarsPadding()),
     ) {
         if (usePeaks) {
-            PeaksWeatherScene(
-                now = state.now,
-                weather = state.weather,
+            PeaksLayer(
+                minuteOfDay = state.now.hour * 60 + state.now.minute,
+                weatherCode = state.weather?.weatherCode,
                 effectOverride = state.weatherEffect,
-                modifier = Modifier.fillMaxSize(),
             )
         } else {
             AmbientBackground(
@@ -132,19 +137,41 @@ fun DeskClockContent(
         }
 
         BurnInProtectedContent(
-            enabled = state.burnInProtection,
+            enabled = state.burnInProtection && !layoutEditMode,
             shiftDp = state.burnInShiftDp,
             intervalSec = state.burnInIntervalSec,
-            smartPixels = state.smartPixels,
+            smartPixels = state.smartPixels && !layoutEditMode,
             smartPixelsStrength = state.smartPixelsStrength,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(layoutEditMode, onOpenSettings) {
+                        if (layoutEditMode) {
+                            detectTapGestures(onTap = { layoutEditMode = false })
+                        } else {
+                            detectTapGestures(
+                                onLongPress = { offset ->
+                                    val hitModule = moduleBounds.values.any { it.contains(offset) }
+                                    if (hitModule) {
+                                        layoutEditMode = true
+                                    } else {
+                                        onOpenSettings?.invoke()
+                                    }
+                                },
+                            )
+                        }
+                    },
+            ) {
                 val size = IntSize(constraints.maxWidth, constraints.maxHeight)
 
                 DraggableModule(
                     fracX = state.modules.timeX,
                     fracY = state.modules.timeY,
                     parentSize = size,
+                    editMode = layoutEditMode,
+                    onBoundsChanged = { moduleBounds[DeskModule.TIME] = it },
                     onMoved = { x, y ->
                         viewModel.setModuleOffsets(state.modules.withModule(DeskModule.TIME, x, y))
                     },
@@ -157,6 +184,8 @@ fun DeskClockContent(
                         fracX = state.modules.dateX,
                         fracY = state.modules.dateY,
                         parentSize = size,
+                        editMode = layoutEditMode,
+                        onBoundsChanged = { moduleBounds[DeskModule.DATE] = it },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(state.modules.withModule(DeskModule.DATE, x, y))
                         },
@@ -170,6 +199,8 @@ fun DeskClockContent(
                         fracX = state.modules.weatherX,
                         fracY = state.modules.weatherY,
                         parentSize = size,
+                        editMode = layoutEditMode,
+                        onBoundsChanged = { moduleBounds[DeskModule.WEATHER] = it },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(
                                 state.modules.withModule(DeskModule.WEATHER, x, y),
@@ -185,6 +216,8 @@ fun DeskClockContent(
                         fracX = state.modules.spotifyX,
                         fracY = state.modules.spotifyY,
                         parentSize = size,
+                        editMode = layoutEditMode,
+                        onBoundsChanged = { moduleBounds[DeskModule.SPOTIFY] = it },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(
                                 state.modules.withModule(DeskModule.SPOTIFY, x, y),
@@ -196,7 +229,46 @@ fun DeskClockContent(
                 }
             }
         }
+
+        if (layoutEditMode) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .zIndex(3f)
+                    .padding(top = 36.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        RoundedCornerShape(24.dp),
+                    )
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.layout_edit_hint),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+                TextButton(onClick = { layoutEditMode = false }) {
+                    Text(stringResource(R.string.layout_edit_done))
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun PeaksLayer(
+    minuteOfDay: Int,
+    weatherCode: Int?,
+    effectOverride: WeatherEffect,
+) {
+    // Own composable with stable args so 250ms clock ticks skip this subtree.
+    PeaksWeatherScene(
+        hourOfDay = minuteOfDay / 60f,
+        weatherCode = weatherCode,
+        effectOverride = effectOverride,
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 @Composable

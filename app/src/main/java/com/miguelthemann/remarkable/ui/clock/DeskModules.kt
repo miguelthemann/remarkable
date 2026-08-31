@@ -6,7 +6,6 @@ package com.miguelthemann.remarkable.ui.clock
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -34,23 +32,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.miguelthemann.remarkable.R
 import com.miguelthemann.remarkable.prefs.ModuleOffsets
@@ -60,55 +49,8 @@ import com.miguelthemann.remarkable.spotify.SpotifyStatus
 import com.miguelthemann.remarkable.weather.celsiusToFahrenheit
 import com.miguelthemann.remarkable.weather.weatherIcon
 import com.miguelthemann.remarkable.weather.weatherLabelRes
-import kotlin.math.roundToInt
 
 enum class DeskModule { TIME, DATE, WEATHER, SPOTIFY }
-
-@Composable
-fun DraggableModule(
-    fracX: Float,
-    fracY: Float,
-    parentSize: IntSize,
-    onMoved: (Float, Float) -> Unit,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    var size by remember { mutableStateOf(IntSize.Zero) }
-    var drag by remember { mutableStateOf(Offset.Zero) }
-
-    val baseX = (fracX * parentSize.width - size.width / 2f)
-    val baseY = (fracY * parentSize.height - size.height / 2f)
-
-    Box(
-        modifier = modifier
-            .onSizeChanged { size = it }
-            .offset {
-                IntOffset(
-                    (baseX + drag.x).roundToInt(),
-                    (baseY + drag.y).roundToInt(),
-                )
-            }
-            .pointerInput(parentSize, fracX, fracY) {
-                detectDragGesturesAfterLongPress(
-                    onDragEnd = {
-                        if (parentSize.width > 0 && parentSize.height > 0) {
-                            val cx = (baseX + drag.x + size.width / 2f) / parentSize.width
-                            val cy = (baseY + drag.y + size.height / 2f) / parentSize.height
-                            onMoved(cx.coerceIn(0.05f, 0.95f), cy.coerceIn(0.05f, 0.95f))
-                        }
-                        drag = Offset.Zero
-                    },
-                    onDragCancel = { drag = Offset.Zero },
-                    onDrag = { change, amount ->
-                        change.consume()
-                        drag += amount
-                    },
-                )
-            },
-    ) {
-        content()
-    }
-}
 
 @Composable
 fun SpotifyModule(
