@@ -60,6 +60,7 @@ data class ClockUiState(
     val customBgArgb: Long = 0xFFF7F1E5,
     val backgroundImagePath: String = "",
     val showDate: Boolean = true,
+    val showTime: Boolean = true,
     val showWeather: Boolean = true,
     val showSpotify: Boolean = true,
     val modules: ModuleOffsets = ModuleOffsets(),
@@ -168,6 +169,7 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                 customBgArgb = settings.customBgArgb,
                 backgroundImagePath = settings.backgroundImagePath,
                 showDate = settings.showDate,
+                showTime = settings.showTime,
                 showWeather = settings.showWeather,
                 showSpotify = settings.showSpotify,
                 modules = settings.modules,
@@ -481,6 +483,7 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun setShowDate(value: Boolean) = viewModelScope.launch { preferences.setShowDate(value) }
+    fun setShowTime(value: Boolean) = viewModelScope.launch { preferences.setShowTime(value) }
     fun setShowWeather(value: Boolean) = viewModelScope.launch { preferences.setShowWeather(value) }
     fun setShowSpotify(value: Boolean) = viewModelScope.launch { preferences.setShowSpotify(value) }
     fun setModuleOffsets(modules: ModuleOffsets) =

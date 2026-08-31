@@ -72,6 +72,7 @@
     <string name="settings_reset_cancel">Cancel</string>
     <string name="settings_reset_success">All settings were reset successfully</string>
     <string name="settings_license">Remarkable is MIT licensed. Third-party notices are in NOTICE.</string>
+    <string name="settings_github">View on GitHub</string>
     <string name="weather_clear">Clear</string>
     <string name="weather_mainly_clear">Mostly clear</string>
     <string name="weather_partly_cloudy">Partly cloudy</string>
@@ -116,11 +117,14 @@
     <string name="clock_digital">Digital</string>
     <string name="clock_both">Both</string>
     <string name="settings_show_date">Show date</string>
+    <string name="settings_show_time">Show clock</string>
     <string name="settings_show_weather_mod">Show weather module</string>
     <string name="settings_show_spotify_mod">Show now-playing module</string>
+    <string name="settings_widgets">Widgets</string>
+    <string name="toast_no_widgets">No widgets? Why install this?</string>
     <string name="settings_modules">Module layout</string>
     <string name="settings_modules_help">Nudge each module so the desk composition fits your screen.</string>
-    <string name="settings_modules_drag_help">On the clock, long-press a module and drag it. Long-press empty space to open Settings. Tap Done when you are finished.</string>
+    <string name="settings_modules_drag_help">On the clock, long-press a module and drag it. In edit mode, drag corners to resize. Long-press empty space for Settings.</string>
     <string name="settings_spotify_module">Spotify module</string>
     <string name="settings_spotify_style">Style</string>
     <string name="spotify_style_oneliner">One line</string>
@@ -148,7 +152,7 @@
     <string name="onboarding_permissions_body">Location (optional) powers local weather. Notifications are used if you enable the floating clock overlay later.</string>
     <string name="onboarding_howto_title">How to use</string>
     <string name="onboarding_howto_body">Long-press empty space to open Settings.\nLong-press a module (time, date, weather, Spotify) and drag to move it.\nTap Done when you finish rearranging.</string>
-    <string name="layout_edit_hint">Drag to move · Done when finished</string>
+    <string name="layout_edit_hint">Move · corners resize · Done</string>
     <string name="layout_edit_done">Done</string>
     <string name="onboarding_next">Continue</string>
     <string name="onboarding_grant">Allow permissions</string>

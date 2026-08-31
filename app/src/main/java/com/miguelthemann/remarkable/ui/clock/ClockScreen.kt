@@ -158,28 +158,42 @@ fun DeskClockContent(
                         },
                 )
 
-                DraggableModule(
-                    fracX = state.modules.timeX,
-                    fracY = state.modules.timeY,
-                    parentSize = size,
-                    editMode = layoutEditMode,
-                    onEnterEditMode = { layoutEditMode = true },
-                    onMoved = { x, y ->
-                        viewModel.setModuleOffsets(state.modules.withModule(DeskModule.TIME, x, y))
-                    },
-                ) {
-                    TimeModule(state)
+                if (state.showTime) {
+                    DraggableModule(
+                        fracX = state.modules.timeX,
+                        fracY = state.modules.timeY,
+                        scale = state.modules.timeScale,
+                        parentSize = size,
+                        editMode = layoutEditMode,
+                        onEnterEditMode = { layoutEditMode = true },
+                        onMoved = { x, y ->
+                            viewModel.setModuleOffsets(state.modules.withModule(DeskModule.TIME, x, y))
+                        },
+                        onScaled = { s ->
+                            viewModel.setModuleOffsets(
+                                state.modules.withModuleScale(DeskModule.TIME, s),
+                            )
+                        },
+                    ) {
+                        TimeModule(state)
+                    }
                 }
 
                 if (state.showDate) {
                     DraggableModule(
                         fracX = state.modules.dateX,
                         fracY = state.modules.dateY,
+                        scale = state.modules.dateScale,
                         parentSize = size,
                         editMode = layoutEditMode,
                         onEnterEditMode = { layoutEditMode = true },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(state.modules.withModule(DeskModule.DATE, x, y))
+                        },
+                        onScaled = { s ->
+                            viewModel.setModuleOffsets(
+                                state.modules.withModuleScale(DeskModule.DATE, s),
+                            )
                         },
                     ) {
                         DateModule(state)
@@ -190,12 +204,18 @@ fun DeskClockContent(
                     DraggableModule(
                         fracX = state.modules.weatherX,
                         fracY = state.modules.weatherY,
+                        scale = state.modules.weatherScale,
                         parentSize = size,
                         editMode = layoutEditMode,
                         onEnterEditMode = { layoutEditMode = true },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(
                                 state.modules.withModule(DeskModule.WEATHER, x, y),
+                            )
+                        },
+                        onScaled = { s ->
+                            viewModel.setModuleOffsets(
+                                state.modules.withModuleScale(DeskModule.WEATHER, s),
                             )
                         },
                     ) {
@@ -207,12 +227,18 @@ fun DeskClockContent(
                     DraggableModule(
                         fracX = state.modules.spotifyX,
                         fracY = state.modules.spotifyY,
+                        scale = state.modules.spotifyScale,
                         parentSize = size,
                         editMode = layoutEditMode,
                         onEnterEditMode = { layoutEditMode = true },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(
                                 state.modules.withModule(DeskModule.SPOTIFY, x, y),
+                            )
+                        },
+                        onScaled = { s ->
+                            viewModel.setModuleOffsets(
+                                state.modules.withModuleScale(DeskModule.SPOTIFY, s),
                             )
                         },
                     ) {

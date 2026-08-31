@@ -56,7 +56,7 @@ enum class CustomBgPreset(val argb: Long) {
 }
 
 /**
- * Module centres as fractions of the screen (0–1).
+ * Module centres as fractions of the screen (0–1), plus per-module scale.
  * I don't know why we used fractions instead of dp either, but it survives rotation so gg.
  */
 data class ModuleOffsets(
@@ -68,13 +68,24 @@ data class ModuleOffsets(
     val weatherY: Float = 0.66f,
     val spotifyX: Float = 0.5f,
     val spotifyY: Float = 0.84f,
+    val timeScale: Float = 1f,
+    val dateScale: Float = 1f,
+    val weatherScale: Float = 1f,
+    val spotifyScale: Float = 1f,
 ) {
     companion object {
+        const val MinScale = 0.55f
+        const val MaxScale = 2.2f
+
         fun fromStored(
             timeX: Float?, timeY: Float?,
             dateX: Float?, dateY: Float?,
             weatherX: Float?, weatherY: Float?,
             spotifyX: Float?, spotifyY: Float?,
+            timeScale: Float? = null,
+            dateScale: Float? = null,
+            weatherScale: Float? = null,
+            spotifyScale: Float? = null,
         ): ModuleOffsets {
             val defaults = ModuleOffsets()
             fun frac(v: Float?, d: Float): Float {
@@ -82,6 +93,8 @@ data class ModuleOffsets(
                 // Legacy dp-style offsets were roughly -80..80
                 return if (abs(v) > 1.5f) d else v.coerceIn(0.05f, 0.95f)
             }
+            fun scale(v: Float?, d: Float): Float =
+                (v ?: d).coerceIn(MinScale, MaxScale)
             return ModuleOffsets(
                 timeX = frac(timeX, defaults.timeX),
                 timeY = frac(timeY, defaults.timeY),
@@ -91,6 +104,10 @@ data class ModuleOffsets(
                 weatherY = frac(weatherY, defaults.weatherY),
                 spotifyX = frac(spotifyX, defaults.spotifyX),
                 spotifyY = frac(spotifyY, defaults.spotifyY),
+                timeScale = scale(timeScale, defaults.timeScale),
+                dateScale = scale(dateScale, defaults.dateScale),
+                weatherScale = scale(weatherScale, defaults.weatherScale),
+                spotifyScale = scale(spotifyScale, defaults.spotifyScale),
             )
         }
     }
@@ -112,6 +129,7 @@ data class UserSettings(
     val customBgArgb: Long = CustomBgPreset.CREAM.argb,
     val backgroundImagePath: String = "",
     val showDate: Boolean = true,
+    val showTime: Boolean = true,
     val showWeather: Boolean = true,
     val showSpotify: Boolean = true,
     val modules: ModuleOffsets = ModuleOffsets(),
@@ -153,6 +171,7 @@ class UserPreferences(private val context: Context) {
     private val customBgArgb = stringPreferencesKey("custom_bg_argb")
     private val backgroundImagePath = stringPreferencesKey("background_image_path")
     private val showDate = booleanPreferencesKey("show_date")
+    private val showTime = booleanPreferencesKey("show_time")
     private val showWeather = booleanPreferencesKey("show_weather")
     private val showSpotify = booleanPreferencesKey("show_spotify")
     private val timeX = floatPreferencesKey("mod_time_x")
@@ -163,6 +182,10 @@ class UserPreferences(private val context: Context) {
     private val weatherY = floatPreferencesKey("mod_weather_y")
     private val spotifyX = floatPreferencesKey("mod_spotify_x")
     private val spotifyY = floatPreferencesKey("mod_spotify_y")
+    private val timeScale = floatPreferencesKey("mod_time_scale")
+    private val dateScale = floatPreferencesKey("mod_date_scale")
+    private val weatherScale = floatPreferencesKey("mod_weather_scale")
+    private val spotifyScale = floatPreferencesKey("mod_spotify_scale")
     private val burnInProtection = booleanPreferencesKey("burn_in")
     private val burnInShiftDp = intPreferencesKey("burn_in_shift_dp")
     private val burnInIntervalSec = intPreferencesKey("burn_in_interval_sec")
@@ -205,6 +228,7 @@ class UserPreferences(private val context: Context) {
             customBgArgb = prefs[customBgArgb]?.toLongOrNull() ?: CustomBgPreset.CREAM.argb,
             backgroundImagePath = prefs[backgroundImagePath].orEmpty(),
             showDate = prefs[showDate] ?: true,
+            showTime = prefs[showTime] ?: true,
             showWeather = prefs[showWeather] ?: true,
             showSpotify = prefs[showSpotify] ?: true,
             modules = ModuleOffsets.fromStored(
@@ -212,6 +236,8 @@ class UserPreferences(private val context: Context) {
                 prefs[dateX], prefs[dateY],
                 prefs[weatherX], prefs[weatherY],
                 prefs[spotifyX], prefs[spotifyY],
+                prefs[timeScale], prefs[dateScale],
+                prefs[weatherScale], prefs[spotifyScale],
             ),
             burnInProtection = prefs[burnInProtection] ?: true,
             burnInShiftDp = prefs[burnInShiftDp] ?: 8,
@@ -265,6 +291,7 @@ class UserPreferences(private val context: Context) {
     suspend fun setBackgroundImagePath(value: String) =
         context.dataStore.edit { it[backgroundImagePath] = value }
     suspend fun setShowDate(value: Boolean) = context.dataStore.edit { it[showDate] = value }
+    suspend fun setShowTime(value: Boolean) = context.dataStore.edit { it[showTime] = value }
     suspend fun setShowWeather(value: Boolean) = context.dataStore.edit { it[showWeather] = value }
     suspend fun setShowSpotify(value: Boolean) = context.dataStore.edit { it[showSpotify] = value }
     suspend fun setModuleOffsets(modules: ModuleOffsets) = context.dataStore.edit {
@@ -276,6 +303,10 @@ class UserPreferences(private val context: Context) {
         it[weatherY] = modules.weatherY.coerceIn(0.05f, 0.95f)
         it[spotifyX] = modules.spotifyX.coerceIn(0.05f, 0.95f)
         it[spotifyY] = modules.spotifyY.coerceIn(0.05f, 0.95f)
+        it[timeScale] = modules.timeScale.coerceIn(ModuleOffsets.MinScale, ModuleOffsets.MaxScale)
+        it[dateScale] = modules.dateScale.coerceIn(ModuleOffsets.MinScale, ModuleOffsets.MaxScale)
+        it[weatherScale] = modules.weatherScale.coerceIn(ModuleOffsets.MinScale, ModuleOffsets.MaxScale)
+        it[spotifyScale] = modules.spotifyScale.coerceIn(ModuleOffsets.MinScale, ModuleOffsets.MaxScale)
     }
     suspend fun setBurnInProtection(value: Boolean) =
         context.dataStore.edit { it[burnInProtection] = value }

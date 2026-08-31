@@ -399,3 +399,20 @@ fun ModuleOffsets.withModule(module: DeskModule, x: Float, y: Float): ModuleOffs
     DeskModule.WEATHER -> copy(weatherX = x, weatherY = y)
     DeskModule.SPOTIFY -> copy(spotifyX = x, spotifyY = y)
 }
+
+fun ModuleOffsets.withModuleScale(module: DeskModule, scale: Float): ModuleOffsets {
+    val s = scale.coerceIn(ModuleOffsets.MinScale, ModuleOffsets.MaxScale)
+    return when (module) {
+        DeskModule.TIME -> copy(timeScale = s)
+        DeskModule.DATE -> copy(dateScale = s)
+        DeskModule.WEATHER -> copy(weatherScale = s)
+        DeskModule.SPOTIFY -> copy(spotifyScale = s)
+    }
+}
+
+fun ModuleOffsets.scaleOf(module: DeskModule): Float = when (module) {
+    DeskModule.TIME -> timeScale
+    DeskModule.DATE -> dateScale
+    DeskModule.WEATHER -> weatherScale
+    DeskModule.SPOTIFY -> spotifyScale
+}

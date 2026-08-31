@@ -284,9 +284,65 @@ fun SettingsScreen(
             ToggleRow(stringResource(R.string.settings_show_seconds), state.showSeconds, viewModel::setShowSeconds)
             ToggleRow(stringResource(R.string.settings_keep_awake), state.keepAwake, viewModel::setKeepAwake)
             ToggleRow(stringResource(R.string.settings_night_dim), state.nightDim, viewModel::setNightDim)
-            ToggleRow(stringResource(R.string.settings_show_date), state.showDate, viewModel::setShowDate)
-            ToggleRow(stringResource(R.string.settings_show_weather_mod), state.showWeather, viewModel::setShowWeather)
-            ToggleRow(stringResource(R.string.settings_show_spotify_mod), state.showSpotify, viewModel::setShowSpotify)
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SectionTitle(stringResource(R.string.settings_widgets))
+            ToggleRow(
+                title = stringResource(R.string.settings_show_time),
+                checked = state.showTime,
+                onCheckedChange = { enabled ->
+                    viewModel.setShowTime(enabled)
+                    warnIfNoWidgets(
+                        context,
+                        enabled,
+                        state.showDate,
+                        state.showWeather,
+                        state.showSpotify,
+                    )
+                },
+            )
+            ToggleRow(
+                title = stringResource(R.string.settings_show_date),
+                checked = state.showDate,
+                onCheckedChange = { enabled ->
+                    viewModel.setShowDate(enabled)
+                    warnIfNoWidgets(
+                        context,
+                        state.showTime,
+                        enabled,
+                        state.showWeather,
+                        state.showSpotify,
+                    )
+                },
+            )
+            ToggleRow(
+                title = stringResource(R.string.settings_show_weather_mod),
+                checked = state.showWeather,
+                onCheckedChange = { enabled ->
+                    viewModel.setShowWeather(enabled)
+                    warnIfNoWidgets(
+                        context,
+                        state.showTime,
+                        state.showDate,
+                        enabled,
+                        state.showSpotify,
+                    )
+                },
+            )
+            ToggleRow(
+                title = stringResource(R.string.settings_show_spotify_mod),
+                checked = state.showSpotify,
+                onCheckedChange = { enabled ->
+                    viewModel.setShowSpotify(enabled)
+                    warnIfNoWidgets(
+                        context,
+                        state.showTime,
+                        state.showDate,
+                        state.showWeather,
+                        enabled,
+                    )
+                },
+            )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SectionTitle(stringResource(R.string.settings_modules))
@@ -647,6 +703,22 @@ fun SettingsScreen(
             ) {
                 Text(stringResource(R.string.settings_reset_all))
             }
+
+            TextButton(
+                onClick = {
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://github.com/miguelthemann/remarkable"),
+                        ),
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text(stringResource(R.string.settings_github))
+            }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -784,6 +856,22 @@ private fun ToggleRow(
             )
         },
     )
+}
+
+private fun warnIfNoWidgets(
+    context: android.content.Context,
+    showTime: Boolean,
+    showDate: Boolean,
+    showWeather: Boolean,
+    showSpotify: Boolean,
+) {
+    if (!showTime && !showDate && !showWeather && !showSpotify) {
+        Toast.makeText(
+            context,
+            context.getString(R.string.toast_no_widgets),
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
 }
 
 @Composable
