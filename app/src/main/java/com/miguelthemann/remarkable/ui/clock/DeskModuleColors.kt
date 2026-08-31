@@ -101,6 +101,7 @@ fun ModuleSurface(
             .background(colors.surface)
             .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         contentAlignment = contentAlignment,
-        content = content,
-    )
+    ) {
+        content()
+    }
 }
