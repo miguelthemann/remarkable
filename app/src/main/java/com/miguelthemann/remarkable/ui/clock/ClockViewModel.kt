@@ -454,12 +454,14 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun handleSpotifyAuthActivityResult(resultCode: Int, data: Intent?) {
-        SpotifyAuth.parseActivityResult(resultCode, data)
+        val clientId = _uiState.value.spotifyClientId
+        SpotifyAuth.parseActivityResult(resultCode, data, clientId)
             .fold(::onSpotifyAuthorized, ::onSpotifyAuthFailed)
     }
 
     fun handleSpotifyRedirect(uri: Uri) {
-        SpotifyAuth.parseRedirect(uri)
+        val clientId = _uiState.value.spotifyClientId
+        SpotifyAuth.parseRedirect(uri, clientId)
             ?.fold(::onSpotifyAuthorized, ::onSpotifyAuthFailed)
     }
 

@@ -10,6 +10,13 @@ import android.net.Uri
 import com.spotify.sdk.android.auth.AuthorizationClient
 import com.spotify.sdk.android.auth.AuthorizationRequest
 import com.spotify.sdk.android.auth.AuthorizationResponse
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.FormBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 data class SpotifyAuthResult(
     val accessToken: String,
@@ -23,11 +30,25 @@ object SpotifyAuth {
         "user-modify-playback-state",
         "user-read-currently-playing",
     )
+    private val tokenExchangeClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .build()
+    private val json = Json { ignoreUnknownKeys = true }
+
+    @Serializable
+    private data class SpotifyTokenResponse(
+        @SerialName("access_token") val accessToken: String,
+        @SerialName("token_type") val tokenType: String,
+        @SerialName("expires_in") val expiresIn: Long,
+        @SerialName("refresh_token") val refreshToken: String? = null,
+    )
 
     fun createLoginIntent(activity: Activity, clientId: String): Intent {
         val request = AuthorizationRequest.Builder(
             clientId,
-            AuthorizationResponse.Type.TOKEN,
+            AuthorizationResponse.Type.CODE,
             SPOTIFY_REDIRECT_URI,
         )
             .setScopes(scopes)
@@ -36,15 +57,15 @@ object SpotifyAuth {
         return AuthorizationClient.createLoginActivityIntent(activity, request)
     }
 
-    fun parseActivityResult(resultCode: Int, data: Intent?): Result<SpotifyAuthResult> {
+    fun parseActivityResult(resultCode: Int, data: Intent?, clientId: String): Result<SpotifyAuthResult> {
         if (data == null) return Result.failure(IllegalStateException("Spotify auth cancelled"))
-        return parseResponse(AuthorizationClient.getResponse(resultCode, data))
+        return parseResponse(AuthorizationClient.getResponse(resultCode, data), clientId)
     }
 
-    fun parseRedirect(uri: Uri?): Result<SpotifyAuthResult>? {
+    fun parseRedirect(uri: Uri?, clientId: String): Result<SpotifyAuthResult>? {
         if (uri == null) return null
         if (uri.scheme != "remarkable" || uri.host != "callback") return null
-        return parseResponse(AuthorizationResponse.fromUri(uri))
+        return parseResponse(AuthorizationResponse.fromUri(uri), clientId)
     }
 
     fun isAuthorizationRequired(message: String): Boolean {
@@ -58,20 +79,14 @@ object SpotifyAuth {
     fun isTokenValid(expiresAtEpochMs: Long): Boolean =
         expiresAtEpochMs > System.currentTimeMillis() + 60_000L
 
-    private fun parseResponse(response: AuthorizationResponse): Result<SpotifyAuthResult> {
+    private fun parseResponse(response: AuthorizationResponse, clientId: String): Result<SpotifyAuthResult> {
         return when (response.getType()) {
-            AuthorizationResponse.Type.TOKEN -> {
-                val token = response.getAccessToken()
-                if (token.isNullOrBlank()) {
-                    Result.failure(IllegalStateException("Spotify returned an empty token"))
+            AuthorizationResponse.Type.CODE -> {
+                val code = response.getCode()
+                if (code.isNullOrBlank()) {
+                    Result.failure(IllegalStateException("Spotify returned an empty authorization code"))
                 } else {
-                    val expiresInSec = response.getExpiresIn().coerceAtLeast(60)
-                    Result.success(
-                        SpotifyAuthResult(
-                            accessToken = token,
-                            expiresAtEpochMs = System.currentTimeMillis() + expiresInSec * 1000L,
-                        ),
-                    )
+                    exchangeCodeForToken(code, clientId)
                 }
             }
             AuthorizationResponse.Type.ERROR -> {
@@ -81,5 +96,37 @@ object SpotifyAuth {
             }
             else -> Result.failure(IllegalStateException("Spotify authorization cancelled"))
         }
+    }
+
+    private fun exchangeCodeForToken(code: String, clientId: String): Result<SpotifyAuthResult> = runCatching {
+        val formBody = FormBody.Builder()
+            .add("grant_type", "authorization_code")
+            .add("code", code)
+            .add("redirect_uri", SPOTIFY_REDIRECT_URI)
+            .add("client_id", clientId)
+            .build()
+
+        val request = Request.Builder()
+            .url("https://accounts.spotify.com/api/token")
+            .post(formBody)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .build()
+
+        val httpResponse = tokenExchangeClient.newCall(request).execute()
+        val responseBody = httpResponse.body?.string()
+            ?: throw IllegalStateException("Spotify token exchange returned an empty response")
+
+        if (!httpResponse.isSuccessful) {
+            throw IllegalStateException("Spotify token exchange failed: ${httpResponse.code} $responseBody")
+        }
+
+        val tokenResponse = json.decodeFromString(SpotifyTokenResponse.serializer(), responseBody)
+        val expiresAtEpochMs = System.currentTimeMillis() + tokenResponse.expiresIn.coerceAtLeast(60) * 1000L
+        SpotifyAuthResult(
+            accessToken = tokenResponse.accessToken,
+            expiresAtEpochMs = expiresAtEpochMs,
+        )
+    }.recoverCatching { throwable ->
+        throw IllegalStateException("Spotify authorization failed: ${throwable.message ?: throwable.toString()}")
     }
 }
