@@ -8,68 +8,39 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miguelthemann.remarkable.R
 import com.miguelthemann.remarkable.media.MusicSource
-import com.miguelthemann.remarkable.overlay.ClockOverlayService
 import com.miguelthemann.remarkable.prefs.AccentPreset
 import com.miguelthemann.remarkable.prefs.BackgroundMode
 import com.miguelthemann.remarkable.prefs.ClockStyle
@@ -77,9 +48,14 @@ import com.miguelthemann.remarkable.prefs.CustomBgPreset
 import com.miguelthemann.remarkable.prefs.SpotifyModuleStyle
 import com.miguelthemann.remarkable.prefs.ThemeMode
 import com.miguelthemann.remarkable.prefs.WeatherEffect
+import com.miguelthemann.remarkable.ui.clock.ClockUiState
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
-import com.miguelthemann.remarkable.ui.theme.fromArgbLong
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+
+internal enum class SettingsPage {
+    Hub, Appearance, Clock, Music, Weather, BurnIn, System, About,
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,38 +64,13 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onFactoryResetDone: () -> Unit = {},
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val state by collectAsStateWithLifecycle(viewModel.uiState)
     val context = LocalContext.current
-    var cityDraft by remember { mutableStateOf(state.city) }
-    var clientDraft by remember { mutableStateOf(state.spotifyClientId) }
-    var cityDirty by remember { mutableStateOf(false) }
-    var clientDirty by remember { mutableStateOf(false) }
-    var resetStep by remember { mutableStateOf(0) } // 0 = idle, 1 = first warn, 2 = final warn
-    var lastFmPassword by remember { mutableStateOf("") }
-    val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent(),
-    ) { uri ->
-        if (uri != null) viewModel.importBackgroundImage(uri)
-    }
+    var page by remember { mutableStateOf(SettingsPage.Hub) }
+    var resetStep by remember { mutableStateOf(0) }
 
-    LaunchedEffect(state.city) {
-        if (!cityDirty) cityDraft = state.city
-    }
-    LaunchedEffect(state.spotifyClientId) {
-        if (!clientDirty) clientDraft = state.spotifyClientId
-    }
-    LaunchedEffect(cityDraft) {
-        delay(600)
-        if (cityDirty && cityDraft != state.city) viewModel.setCity(cityDraft)
-    }
-    LaunchedEffect(clientDraft) {
-        delay(600)
-        if (clientDirty && clientDraft != state.spotifyClientId) {
-            viewModel.setSpotifyClientId(clientDraft)
-        }
-    }
     LaunchedEffect(state.overlayEnabled) {
-        val runningIntent = Intent(context, ClockOverlayService::class.java)
+        val runningIntent = Intent(context, com.miguelthemann.remarkable.overlay.ClockOverlayService::class.java)
         if (state.overlayEnabled) {
             if (Settings.canDrawOverlays(context)) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -133,605 +84,58 @@ fun SettingsScreen(
         }
     }
 
+    val title = when (page) {
+        SettingsPage.Hub -> stringResource(R.string.settings)
+        SettingsPage.Appearance -> stringResource(R.string.settings_appearance)
+        SettingsPage.Clock -> stringResource(R.string.settings_clock)
+        SettingsPage.Music -> stringResource(R.string.settings_music)
+        SettingsPage.Weather -> stringResource(R.string.settings_weather)
+        SettingsPage.BurnIn -> stringResource(R.string.settings_burn_in)
+        SettingsPage.System -> stringResource(R.string.settings_system)
+        SettingsPage.About -> stringResource(R.string.settings_about)
+    }
+
+    val navigateBack = {
+        if (page == SettingsPage.Hub) onBack() else page = SettingsPage.Hub
+    }
+
+    BackHandlerCompat(enabled = true, onBack = navigateBack)
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings)) },
+                title = { Text(title) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                        )
+                    IconButton(onClick = navigateBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back))
                     }
                 },
             )
         },
     ) { inner ->
         Column(
-            modifier = Modifier
+            Modifier
                 .padding(inner)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 40.dp),
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
         ) {
-            SectionTitle(stringResource(R.string.settings_appearance))
-            Text(
-                text = stringResource(R.string.settings_theme_mode),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            ChipRow {
-                ThemeMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = state.themeMode == mode,
-                        onClick = { viewModel.setThemeMode(mode) },
-                        label = { Text(themeModeLabel(mode)) },
-                    )
-                }
-            }
-            if (state.themeMode != ThemeMode.MONET) {
-                Text(
-                    text = stringResource(R.string.settings_accent),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    AccentPreset.entries.forEach { preset ->
-                        val color = Color.fromArgbLong(preset.argb)
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .border(
-                                    width = if (state.accentArgb == preset.argb) 3.dp else 0.dp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    shape = CircleShape,
-                                )
-                                .clickable { viewModel.setAccentArgb(preset.argb) },
+            when (page) {
+                SettingsPage.Hub -> SettingsHub(state = state, onOpen = { page = it })
+                SettingsPage.Appearance -> AppearanceSettings(state, viewModel)
+                SettingsPage.Clock -> ClockSettings(state, viewModel, context)
+                SettingsPage.Music -> MusicSettings(state, viewModel, context)
+                SettingsPage.Weather -> WeatherSettings(state, viewModel)
+                SettingsPage.BurnIn -> BurnInSettings(state, viewModel)
+                SettingsPage.System -> SystemSettings(state, viewModel, context)
+                SettingsPage.About -> AboutSettings(
+                    onReset = { resetStep = 1 },
+                    onGitHub = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/miguelthemann/remarkable")),
                         )
-                    }
-                }
-                Text(
-                    text = stringResource(R.string.settings_accent_custom_help),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-                SolidColorPicker(
-                    argb = state.accentArgb,
-                    onColorChange = viewModel::setAccentArgb,
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-            Text(
-                text = stringResource(R.string.settings_background),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            ChipRow {
-                BackgroundMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = state.backgroundMode == mode,
-                        onClick = { viewModel.setBackgroundMode(mode) },
-                        label = { Text(backgroundModeLabel(mode)) },
-                    )
-                }
-            }
-            if (state.backgroundMode == BackgroundMode.CUSTOM_COLOR) {
-                Text(
-                    text = stringResource(R.string.settings_custom_bg_color),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Text(
-                    text = stringResource(R.string.settings_custom_bg_color_help),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-                ColorSwatchRow(
-                    selectedArgb = state.customBgArgb,
-                    presets = CustomBgPreset.entries.map { it.argb },
-                    onSelect = {
-                        viewModel.setCustomBgArgb(it)
                     },
                 )
-                Spacer(Modifier.height(8.dp))
-                SolidColorPicker(
-                    argb = state.customBgArgb,
-                    onColorChange = viewModel::setCustomBgArgb,
-                )
             }
-            if (state.backgroundMode == BackgroundMode.IMAGE) {
-                Text(
-                    text = stringResource(R.string.settings_background_image_help),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(onClick = { imagePicker.launch("image/*") }) {
-                        Text(stringResource(R.string.settings_pick_image))
-                    }
-                    if (state.backgroundImagePath.isNotBlank()) {
-                        OutlinedButton(onClick = viewModel::clearBackgroundImage) {
-                            Text(stringResource(R.string.settings_clear_image))
-                        }
-                    }
-                }
-                if (state.backgroundImagePath.isNotBlank()) {
-                    Text(
-                        text = stringResource(R.string.settings_image_selected),
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                    )
-                }
-            }
-            Text(
-                text = stringResource(R.string.settings_clock_style),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            ChipRow {
-                ClockStyle.entries.forEach { style ->
-                    FilterChip(
-                        selected = state.clockStyle == style,
-                        onClick = { viewModel.setClockStyle(style) },
-                        label = { Text(clockStyleLabel(style)) },
-                    )
-                }
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_clock))
-            ToggleRow(stringResource(R.string.settings_use_24h), state.use24Hour, viewModel::setUse24Hour)
-            ToggleRow(stringResource(R.string.settings_show_seconds), state.showSeconds, viewModel::setShowSeconds)
-            ToggleRow(stringResource(R.string.settings_keep_awake), state.keepAwake, viewModel::setKeepAwake)
-            ToggleRow(stringResource(R.string.settings_night_dim), state.nightDim, viewModel::setNightDim)
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_widgets))
-            ToggleRow(
-                title = stringResource(R.string.settings_show_time),
-                checked = state.showTime,
-                onCheckedChange = { enabled ->
-                    viewModel.setShowTime(enabled)
-                    warnIfNoWidgets(
-                        context,
-                        enabled,
-                        state.showDate,
-                        state.showWeather,
-                        state.showSpotify,
-                    )
-                },
-            )
-            ToggleRow(
-                title = stringResource(R.string.settings_show_date),
-                checked = state.showDate,
-                onCheckedChange = { enabled ->
-                    viewModel.setShowDate(enabled)
-                    warnIfNoWidgets(
-                        context,
-                        state.showTime,
-                        enabled,
-                        state.showWeather,
-                        state.showSpotify,
-                    )
-                },
-            )
-            ToggleRow(
-                title = stringResource(R.string.settings_show_weather_mod),
-                checked = state.showWeather,
-                onCheckedChange = { enabled ->
-                    viewModel.setShowWeather(enabled)
-                    warnIfNoWidgets(
-                        context,
-                        state.showTime,
-                        state.showDate,
-                        enabled,
-                        state.showSpotify,
-                    )
-                },
-            )
-            ToggleRow(
-                title = stringResource(R.string.settings_show_spotify_mod),
-                checked = state.showSpotify,
-                onCheckedChange = { enabled ->
-                    viewModel.setShowSpotify(enabled)
-                    warnIfNoWidgets(
-                        context,
-                        state.showTime,
-                        state.showDate,
-                        state.showWeather,
-                        enabled,
-                    )
-                },
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_modules))
-            Text(
-                text = stringResource(R.string.settings_modules_drag_help),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            TextButton(
-                onClick = viewModel::resetModules,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            ) {
-                Text(stringResource(R.string.settings_reset_modules))
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_music))
-            Text(
-                text = stringResource(R.string.settings_spotify_style),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            ChipRow {
-                SpotifyModuleStyle.entries.forEach { style ->
-                    FilterChip(
-                        selected = state.spotifyStyle == style,
-                        onClick = { viewModel.setSpotifyStyle(style) },
-                        label = { Text(spotifyStyleLabel(style)) },
-                    )
-                }
-            }
-            Text(
-                text = stringResource(R.string.settings_music_source_help),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectableGroup()
-                    .padding(vertical = 4.dp),
-            ) {
-                MusicSource.entries.forEach { source ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = state.musicSource == source,
-                                onClick = { viewModel.setMusicSource(source) },
-                                role = Role.RadioButton,
-                            )
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = state.musicSource == source,
-                            onClick = null,
-                        )
-                        Text(
-                            text = musicSourceLabel(source),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 12.dp),
-                        )
-                    }
-                }
-            }
-            when (state.musicSource) {
-                MusicSource.SYSTEM -> {
-                    Text(
-                        text = stringResource(R.string.music_need_notification_access),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                    TextButton(
-                        onClick = {
-                            context.startActivity(
-                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
-                            )
-                        },
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    ) {
-                        Text(stringResource(R.string.music_open_notification_access))
-                    }
-                }
-                MusicSource.SPOTIFY -> {
-                    OutlinedTextField(
-                        value = clientDraft,
-                        onValueChange = {
-                            clientDirty = true
-                            clientDraft = it
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        label = { Text(stringResource(R.string.settings_client_id)) },
-                        singleLine = true,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_client_id_help),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
-                MusicSource.LASTFM -> {
-                    Text(
-                        text = stringResource(R.string.settings_lastfm_help),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                    OutlinedTextField(
-                        value = state.lastFmApiKey,
-                        onValueChange = viewModel::setLastFmApiKey,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        label = { Text(stringResource(R.string.settings_lastfm_api_key)) },
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = state.lastFmSharedSecret,
-                        onValueChange = viewModel::setLastFmSharedSecret,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        label = { Text(stringResource(R.string.settings_lastfm_shared_secret)) },
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = state.lastFmUsername,
-                        onValueChange = viewModel::setLastFmUsername,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        label = { Text(stringResource(R.string.settings_lastfm_username)) },
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = lastFmPassword,
-                        onValueChange = { lastFmPassword = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        label = { Text(stringResource(R.string.settings_lastfm_password)) },
-                        singleLine = true,
-                    )
-                    Button(
-                        onClick = {
-                            viewModel.loginLastFm(lastFmPassword)
-                            lastFmPassword = ""
-                        },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        enabled = state.lastFmApiKey.isNotBlank() &&
-                            state.lastFmSharedSecret.isNotBlank() &&
-                            state.lastFmUsername.isNotBlank() &&
-                            lastFmPassword.isNotBlank(),
-                    ) {
-                        Text(stringResource(R.string.settings_lastfm_login))
-                    }
-                    if (state.lastFmSessionKey.isNotBlank()) {
-                        Text(
-                            text = stringResource(R.string.settings_lastfm_signed_in),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                    }
-                    if (state.lastFmLoginMessage != null && state.lastFmLoginMessage != "ok") {
-                        Text(
-                            text = state.lastFmLoginMessage.orEmpty(),
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                    }
-                }
-            }
-            ToggleRow(stringResource(R.string.settings_show_spotify_icon), state.showSpotifyIcon, viewModel::setShowSpotifyIcon)
-            ToggleRow(stringResource(R.string.settings_generic_music_icon), state.useGenericMusicIcon, viewModel::setUseGenericMusicIcon)
-            ToggleRow(stringResource(R.string.settings_show_track_title), state.showTrackTitle, viewModel::setShowTrackTitle)
-            ToggleRow(stringResource(R.string.settings_show_artist), state.showArtist, viewModel::setShowArtist)
-            ToggleRow(stringResource(R.string.settings_show_album), state.showAlbum, viewModel::setShowAlbum)
-            ToggleRow(stringResource(R.string.settings_show_release_year), state.showReleaseYear, viewModel::setShowReleaseYear)
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_weather_effect))
-            Text(
-                text = stringResource(R.string.settings_weather_effect_help),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            ChipRow {
-                WeatherEffect.entries.forEach { effect ->
-                    FilterChip(
-                        selected = state.weatherEffect == effect,
-                        onClick = { viewModel.setWeatherEffect(effect) },
-                        label = { Text(weatherEffectLabel(effect)) },
-                    )
-                }
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_burn_in))
-            ToggleRow(
-                stringResource(R.string.settings_burn_in_enable),
-                state.burnInProtection,
-                viewModel::setBurnInProtection,
-            )
-            Text(
-                text = stringResource(R.string.settings_burn_in_shift, state.burnInShiftDp),
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            Slider(
-                value = state.burnInShiftDp.toFloat(),
-                onValueChange = { viewModel.setBurnInShiftDp(it.toInt()) },
-                valueRange = 2f..24f,
-                steps = 21,
-                modifier = Modifier.padding(horizontal = 16.dp),
-                enabled = state.burnInProtection,
-            )
-            Text(
-                text = stringResource(R.string.settings_burn_in_interval, state.burnInIntervalSec),
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            Slider(
-                value = state.burnInIntervalSec.toFloat(),
-                onValueChange = { viewModel.setBurnInIntervalSec(it.toInt()) },
-                valueRange = 15f..300f,
-                steps = 18,
-                modifier = Modifier.padding(horizontal = 16.dp),
-                enabled = state.burnInProtection,
-            )
-            ToggleRow(
-                stringResource(R.string.settings_smart_pixels),
-                state.smartPixels,
-                viewModel::setSmartPixels,
-            )
-            Text(
-                text = stringResource(R.string.settings_smart_pixels_help),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            Text(
-                text = stringResource(
-                    R.string.settings_smart_pixels_strength,
-                    (state.smartPixelsStrength * 100).toInt(),
-                ),
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            Slider(
-                value = state.smartPixelsStrength,
-                onValueChange = viewModel::setSmartPixelsStrength,
-                valueRange = 0.1f..0.8f,
-                modifier = Modifier.padding(horizontal = 16.dp),
-                enabled = state.burnInProtection && state.smartPixels,
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_system))
-            Text(
-                text = stringResource(R.string.settings_launcher_help),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            TextButton(
-                onClick = {
-                    context.startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
-                },
-                modifier = Modifier.padding(horizontal = 8.dp),
-            ) {
-                Text(stringResource(R.string.settings_open_home))
-            }
-            Text(
-                text = stringResource(R.string.settings_screensaver_help),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            TextButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(Intent("android.settings.DREAM_SETTINGS"))
-                    }.onFailure {
-                        context.startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS))
-                    }
-                },
-                modifier = Modifier.padding(horizontal = 8.dp),
-            ) {
-                Text(stringResource(R.string.settings_open_screensaver))
-            }
-            ToggleRow(
-                stringResource(R.string.settings_overlay),
-                state.overlayEnabled,
-            ) { enabled ->
-                if (enabled && !Settings.canDrawOverlays(context)) {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${context.packageName}"),
-                    )
-                    context.startActivity(intent)
-                    viewModel.setOverlayEnabled(false)
-                } else {
-                    viewModel.setOverlayEnabled(enabled)
-                }
-            }
-            Text(
-                text = stringResource(R.string.settings_overlay_help),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_weather))
-            ToggleRow(stringResource(R.string.settings_use_celsius), state.useCelsius, viewModel::setUseCelsius)
-            OutlinedTextField(
-                value = cityDraft,
-                onValueChange = {
-                    cityDirty = true
-                    cityDraft = it
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                label = { Text(stringResource(R.string.settings_city)) },
-                placeholder = { Text(stringResource(R.string.settings_city_placeholder)) },
-                singleLine = true,
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_about))
-            Text(
-                text = stringResource(R.string.settings_license),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SectionTitle(stringResource(R.string.settings_danger_zone))
-            Text(
-                text = stringResource(R.string.settings_reset_all_help),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            OutlinedButton(
-                onClick = { resetStep = 1 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error,
-                ),
-            ) {
-                Text(stringResource(R.string.settings_reset_all))
-            }
-
-            TextButton(
-                onClick = {
-                    context.startActivity(
-                        Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://github.com/miguelthemann/remarkable"),
-                        ),
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-            ) {
-                Text(stringResource(R.string.settings_github))
-            }
-            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -744,7 +148,6 @@ fun SettingsScreen(
             onDismiss = { resetStep = 0 },
         )
     }
-
     if (resetStep == 2) {
         ResetConfirmDialog(
             title = stringResource(R.string.settings_reset_confirm2_title),
@@ -752,12 +155,12 @@ fun SettingsScreen(
             destructive = true,
             onConfirm = {
                 resetStep = 0
-                context.stopService(Intent(context, ClockOverlayService::class.java))
+                context.stopService(Intent(context, com.miguelthemann.remarkable.overlay.ClockOverlayService::class.java))
                 viewModel.resetEverything {
-                    Toast.makeText(
+                    android.widget.Toast.makeText(
                         context,
                         context.getString(R.string.settings_reset_success),
-                        Toast.LENGTH_LONG,
+                        android.widget.Toast.LENGTH_LONG,
                     ).show()
                     onFactoryResetDone()
                 }
@@ -767,127 +170,475 @@ fun SettingsScreen(
     }
 }
 
-/**
- * Two-step factory reset gate. The confirm button naps for 3 seconds so
- * rage-taps don't yeet your Spotify Client ID into the sun.
- */
 @Composable
-private fun ResetConfirmDialog(
-    title: String,
-    body: String,
-    destructive: Boolean,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
+private fun BackHandlerCompat(enabled: Boolean, onBack: () -> Unit) {
+    androidx.activity.compose.BackHandler(enabled = enabled, onBack = onBack)
+}
+
+@Composable
+private fun SettingsHub(
+    state: ClockUiState,
+    onOpen: (SettingsPage) -> Unit,
 ) {
-    var secondsLeft by remember { mutableIntStateOf(3) }
-    LaunchedEffect(Unit) {
-        while (secondsLeft > 0) {
-            delay(1_000)
-            secondsLeft--
+    Column {
+        SettingsNavRow(
+            title = stringResource(R.string.settings_appearance),
+            subtitle = "${settingsThemeLabel(state.themeMode)} · ${settingsBackgroundLabel(state.backgroundMode)}",
+            onClick = { onOpen(SettingsPage.Appearance) },
+        )
+        SettingsNavRow(
+            title = stringResource(R.string.settings_clock),
+            subtitle = "${settingsClockStyleLabel(state.clockStyle)} · ${settingsWidgetsSummary(state)}",
+            onClick = { onOpen(SettingsPage.Clock) },
+        )
+        SettingsNavRow(
+            title = stringResource(R.string.settings_music),
+            subtitle = settingsMusicSourceLabel(state.musicSource),
+            onClick = { onOpen(SettingsPage.Music) },
+        )
+        SettingsNavRow(
+            title = stringResource(R.string.settings_weather),
+            subtitle = state.city.ifBlank { stringResource(R.string.settings_weather_gps) },
+            onClick = { onOpen(SettingsPage.Weather) },
+        )
+        SettingsNavRow(
+            title = stringResource(R.string.settings_burn_in),
+            subtitle = if (state.burnInProtection) {
+                stringResource(R.string.settings_burn_in_on)
+            } else {
+                stringResource(R.string.settings_burn_in_off)
+            },
+            onClick = { onOpen(SettingsPage.BurnIn) },
+        )
+        SettingsNavRow(
+            title = stringResource(R.string.settings_system),
+            onClick = { onOpen(SettingsPage.System) },
+        )
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        SettingsNavRow(
+            title = stringResource(R.string.settings_about),
+            onClick = { onOpen(SettingsPage.About) },
+        )
+    }
+}
+
+@Composable
+private fun AppearanceSettings(state: ClockUiState, viewModel: ClockViewModel) {
+    var themeDialog by remember { mutableStateOf(false) }
+    var bgDialog by remember { mutableStateOf(false) }
+    var clockDialog by remember { mutableStateOf(false) }
+    var accentPicker by remember { mutableStateOf(false) }
+    var bgPicker by remember { mutableStateOf(false) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) viewModel.importBackgroundImage(uri)
+    }
+
+    Column {
+        SettingsNavRow(
+            title = stringResource(R.string.settings_theme_mode),
+            subtitle = settingsThemeLabel(state.themeMode),
+            onClick = { themeDialog = true },
+        )
+        if (state.themeMode != ThemeMode.MONET) {
+            SettingsSectionLabel(stringResource(R.string.settings_accent))
+            ColorSwatchRow(
+                selectedArgb = state.accentArgb,
+                presets = AccentPreset.entries.map { it.argb },
+                onSelect = viewModel::setAccentArgb,
+            )
+            ColorPickerNavRow(
+                title = stringResource(R.string.settings_accent_custom),
+                argb = state.accentArgb,
+                onClick = { accentPicker = true },
+            )
+        }
+        SettingsNavRow(
+            title = stringResource(R.string.settings_background),
+            subtitle = settingsBackgroundLabel(state.backgroundMode),
+            onClick = { bgDialog = true },
+        )
+        if (state.backgroundMode == BackgroundMode.CUSTOM_COLOR) {
+            SettingsSectionLabel(stringResource(R.string.settings_custom_bg_color))
+            ColorSwatchRow(
+                selectedArgb = state.customBgArgb,
+                presets = CustomBgPreset.entries.map { it.argb },
+                onSelect = viewModel::setCustomBgArgb,
+            )
+            ColorPickerNavRow(
+                title = stringResource(R.string.settings_custom_bg_color),
+                argb = state.customBgArgb,
+                onClick = { bgPicker = true },
+            )
+        }
+        if (state.backgroundMode == BackgroundMode.IMAGE) {
+            SettingsHint(stringResource(R.string.settings_background_image_help))
+            OutlinedButton(
+                onClick = { imagePicker.launch("image/*") },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Text(stringResource(R.string.settings_pick_image))
+            }
+            if (state.backgroundImagePath.isNotBlank()) {
+                TextButton(onClick = viewModel::clearBackgroundImage) {
+                    Text(stringResource(R.string.settings_clear_image))
+                }
+            }
+        }
+        SettingsNavRow(
+            title = stringResource(R.string.settings_clock_style),
+            subtitle = settingsClockStyleLabel(state.clockStyle),
+            onClick = { clockDialog = true },
+        )
+    }
+
+    if (themeDialog) {
+        SingleChoiceDialog(
+            title = stringResource(R.string.settings_theme_mode),
+            options = ThemeMode.entries,
+            selected = state.themeMode,
+            optionLabel = { settingsThemeLabel(it) },
+            onSelect = viewModel::setThemeMode,
+            onDismiss = { themeDialog = false },
+        )
+    }
+    if (bgDialog) {
+        SingleChoiceDialog(
+            title = stringResource(R.string.settings_background),
+            options = BackgroundMode.entries,
+            selected = state.backgroundMode,
+            optionLabel = { settingsBackgroundLabel(it) },
+            onSelect = viewModel::setBackgroundMode,
+            onDismiss = { bgDialog = false },
+        )
+    }
+    if (clockDialog) {
+        SingleChoiceDialog(
+            title = stringResource(R.string.settings_clock_style),
+            options = ClockStyle.entries,
+            selected = state.clockStyle,
+            optionLabel = { settingsClockStyleLabel(it) },
+            onSelect = viewModel::setClockStyle,
+            onDismiss = { clockDialog = false },
+        )
+    }
+    if (accentPicker) {
+        ColorPickerSheet(
+            argb = state.accentArgb,
+            onColorChange = viewModel::setAccentArgb,
+            onDismiss = { accentPicker = false },
+        )
+    }
+    if (bgPicker) {
+        ColorPickerSheet(
+            argb = state.customBgArgb,
+            onColorChange = viewModel::setCustomBgArgb,
+            onDismiss = { bgPicker = false },
+        )
+    }
+}
+
+@Composable
+private fun ClockSettings(state: ClockUiState, viewModel: ClockViewModel, context: android.content.Context) {
+    Column {
+        SettingsSectionLabel(stringResource(R.string.settings_clock))
+        SettingsToggleRow(stringResource(R.string.settings_use_24h), state.use24Hour, viewModel::setUse24Hour)
+        SettingsToggleRow(stringResource(R.string.settings_show_seconds), state.showSeconds, viewModel::setShowSeconds)
+        SettingsToggleRow(stringResource(R.string.settings_keep_awake), state.keepAwake, viewModel::setKeepAwake)
+        SettingsToggleRow(stringResource(R.string.settings_night_dim), state.nightDim, viewModel::setNightDim)
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.settings_widgets))
+        SettingsToggleRow(stringResource(R.string.settings_show_time), state.showTime) { enabled ->
+            viewModel.setShowTime(enabled)
+            warnIfNoWidgets(context, enabled, state.showDate, state.showWeather, state.showSpotify)
+        }
+        SettingsToggleRow(stringResource(R.string.settings_show_date), state.showDate) { enabled ->
+            viewModel.setShowDate(enabled)
+            warnIfNoWidgets(context, state.showTime, enabled, state.showWeather, state.showSpotify)
+        }
+        SettingsToggleRow(stringResource(R.string.settings_show_weather_mod), state.showWeather) { enabled ->
+            viewModel.setShowWeather(enabled)
+            warnIfNoWidgets(context, state.showTime, state.showDate, enabled, state.showSpotify)
+        }
+        SettingsToggleRow(stringResource(R.string.settings_show_spotify_mod), state.showSpotify) { enabled ->
+            viewModel.setShowSpotify(enabled)
+            warnIfNoWidgets(context, state.showTime, state.showDate, state.showWeather, enabled)
+        }
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.settings_modules))
+        SettingsHint(stringResource(R.string.settings_modules_drag_help))
+        TextButton(onClick = viewModel::resetModules, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text(stringResource(R.string.settings_reset_modules))
         }
     }
-    val ready = secondsLeft == 0
-    val label = if (ready) {
-        stringResource(R.string.settings_reset_action)
-    } else {
-        stringResource(R.string.settings_reset_action_countdown, secondsLeft)
+}
+
+@Composable
+private fun MusicSettings(state: ClockUiState, viewModel: ClockViewModel, context: android.content.Context) {
+    var styleDialog by remember { mutableStateOf(false) }
+    var sourceDialog by remember { mutableStateOf(false) }
+    var clientDraft by remember { mutableStateOf(state.spotifyClientId) }
+    var clientDirty by remember { mutableStateOf(false) }
+    var lastFmPassword by remember { mutableStateOf("") }
+
+    LaunchedEffect(state.spotifyClientId) {
+        if (!clientDirty) clientDraft = state.spotifyClientId
+    }
+    LaunchedEffect(clientDraft) {
+        delay(600)
+        if (clientDirty && clientDraft != state.spotifyClientId) {
+            viewModel.setSpotifyClientId(clientDraft)
+        }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(body) },
-        confirmButton = {
-            if (destructive) {
+    Column {
+        SettingsNavRow(
+            title = stringResource(R.string.settings_spotify_style),
+            subtitle = settingsSpotifyStyleLabel(state.spotifyStyle),
+            onClick = { styleDialog = true },
+        )
+        SettingsNavRow(
+            title = stringResource(R.string.settings_music_source),
+            subtitle = settingsMusicSourceLabel(state.musicSource),
+            onClick = { sourceDialog = true },
+        )
+
+        when (state.musicSource) {
+            MusicSource.SYSTEM -> {
+                SettingsHint(stringResource(R.string.music_need_notification_access))
+                TextButton(onClick = {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                }) {
+                    Text(stringResource(R.string.music_open_notification_access))
+                }
+            }
+            MusicSource.SPOTIFY -> {
+                OutlinedTextField(
+                    value = clientDraft,
+                    onValueChange = { clientDirty = true; clientDraft = it },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    label = { Text(stringResource(R.string.settings_client_id)) },
+                    singleLine = true,
+                )
+                SettingsHint(stringResource(R.string.settings_client_id_help))
+            }
+            MusicSource.LASTFM -> {
+                SettingsHint(stringResource(R.string.settings_lastfm_help))
+                OutlinedTextField(
+                    value = state.lastFmApiKey,
+                    onValueChange = viewModel::setLastFmApiKey,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    label = { Text(stringResource(R.string.settings_lastfm_api_key)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = state.lastFmSharedSecret,
+                    onValueChange = viewModel::setLastFmSharedSecret,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    label = { Text(stringResource(R.string.settings_lastfm_shared_secret)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = state.lastFmUsername,
+                    onValueChange = viewModel::setLastFmUsername,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    label = { Text(stringResource(R.string.settings_lastfm_username)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = lastFmPassword,
+                    onValueChange = { lastFmPassword = it },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    label = { Text(stringResource(R.string.settings_lastfm_password)) },
+                    singleLine = true,
+                )
                 Button(
-                    onClick = onConfirm,
-                    enabled = ready,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                        disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.38f),
-                        disabledContentColor = MaterialTheme.colorScheme.onError.copy(alpha = 0.6f),
-                    ),
+                    onClick = { viewModel.loginLastFm(lastFmPassword); lastFmPassword = "" },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    enabled = state.lastFmApiKey.isNotBlank() && state.lastFmSharedSecret.isNotBlank() &&
+                        state.lastFmUsername.isNotBlank() && lastFmPassword.isNotBlank(),
                 ) {
-                    Text(label)
+                    Text(stringResource(R.string.settings_lastfm_login))
                 }
+                if (state.lastFmSessionKey.isNotBlank()) {
+                    SettingsHint(stringResource(R.string.settings_lastfm_signed_in))
+                }
+                if (state.lastFmLoginMessage != null && state.lastFmLoginMessage != "ok") {
+                    Text(
+                        state.lastFmLoginMessage.orEmpty(),
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.settings_spotify_module))
+        SettingsToggleRow(stringResource(R.string.settings_show_spotify_icon), state.showSpotifyIcon, viewModel::setShowSpotifyIcon)
+        SettingsToggleRow(stringResource(R.string.settings_generic_music_icon), state.useGenericMusicIcon, viewModel::setUseGenericMusicIcon)
+        SettingsToggleRow(stringResource(R.string.settings_show_track_title), state.showTrackTitle, viewModel::setShowTrackTitle)
+        SettingsToggleRow(stringResource(R.string.settings_show_artist), state.showArtist, viewModel::setShowArtist)
+        SettingsToggleRow(stringResource(R.string.settings_show_album), state.showAlbum, viewModel::setShowAlbum)
+        SettingsToggleRow(stringResource(R.string.settings_show_release_year), state.showReleaseYear, viewModel::setShowReleaseYear)
+    }
+
+    if (styleDialog) {
+        SingleChoiceDialog(
+            title = stringResource(R.string.settings_spotify_style),
+            options = SpotifyModuleStyle.entries,
+            selected = state.spotifyStyle,
+            optionLabel = { settingsSpotifyStyleLabel(it) },
+            onSelect = viewModel::setSpotifyStyle,
+            onDismiss = { styleDialog = false },
+        )
+    }
+    if (sourceDialog) {
+        SingleChoiceDialog(
+            title = stringResource(R.string.settings_music_source),
+            options = MusicSource.entries,
+            selected = state.musicSource,
+            optionLabel = { settingsMusicSourceLabel(it) },
+            onSelect = viewModel::setMusicSource,
+            onDismiss = { sourceDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun WeatherSettings(state: ClockUiState, viewModel: ClockViewModel) {
+    var fxDialog by remember { mutableStateOf(false) }
+    var cityDraft by remember { mutableStateOf(state.city) }
+    var cityDirty by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.city) {
+        if (!cityDirty) cityDraft = state.city
+    }
+    LaunchedEffect(cityDraft) {
+        delay(600)
+        if (cityDirty && cityDraft != state.city) viewModel.setCity(cityDraft)
+    }
+
+    Column {
+        SettingsToggleRow(stringResource(R.string.settings_use_celsius), state.useCelsius, viewModel::setUseCelsius)
+        OutlinedTextField(
+            value = cityDraft,
+            onValueChange = { cityDirty = true; cityDraft = it },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            label = { Text(stringResource(R.string.settings_city)) },
+            placeholder = { Text(stringResource(R.string.settings_city_placeholder)) },
+            singleLine = true,
+        )
+        SettingsNavRow(
+            title = stringResource(R.string.settings_weather_effect),
+            subtitle = settingsWeatherEffectLabel(state.weatherEffect),
+            onClick = { fxDialog = true },
+        )
+        SettingsHint(stringResource(R.string.settings_weather_effect_help))
+    }
+
+    if (fxDialog) {
+        SingleChoiceDialog(
+            title = stringResource(R.string.settings_weather_effect),
+            options = WeatherEffect.entries,
+            selected = state.weatherEffect,
+            optionLabel = { settingsWeatherEffectLabel(it) },
+            onSelect = viewModel::setWeatherEffect,
+            onDismiss = { fxDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun BurnInSettings(state: ClockUiState, viewModel: ClockViewModel) {
+    Column {
+        SettingsToggleRow(stringResource(R.string.settings_burn_in_enable), state.burnInProtection, viewModel::setBurnInProtection)
+        Text(stringResource(R.string.settings_burn_in_shift, state.burnInShiftDp), modifier = Modifier.padding(horizontal = 16.dp))
+        Slider(
+            value = state.burnInShiftDp.toFloat(),
+            onValueChange = { viewModel.setBurnInShiftDp(it.toInt()) },
+            valueRange = 2f..24f,
+            steps = 21,
+            modifier = Modifier.padding(horizontal = 16.dp),
+            enabled = state.burnInProtection,
+        )
+        Text(stringResource(R.string.settings_burn_in_interval, state.burnInIntervalSec), modifier = Modifier.padding(horizontal = 16.dp))
+        Slider(
+            value = state.burnInIntervalSec.toFloat(),
+            onValueChange = { viewModel.setBurnInIntervalSec(it.toInt()) },
+            valueRange = 15f..300f,
+            steps = 18,
+            modifier = Modifier.padding(horizontal = 16.dp),
+            enabled = state.burnInProtection,
+        )
+        SettingsToggleRow(stringResource(R.string.settings_smart_pixels), state.smartPixels, viewModel::setSmartPixels)
+        SettingsHint(stringResource(R.string.settings_smart_pixels_help))
+        Text(
+            stringResource(R.string.settings_smart_pixels_strength, (state.smartPixelsStrength * 100).toInt()),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        Slider(
+            value = state.smartPixelsStrength,
+            onValueChange = viewModel::setSmartPixelsStrength,
+            valueRange = 0.1f..0.8f,
+            modifier = Modifier.padding(horizontal = 16.dp),
+            enabled = state.burnInProtection && state.smartPixels,
+        )
+    }
+}
+
+@Composable
+private fun SystemSettings(state: ClockUiState, viewModel: ClockViewModel, context: android.content.Context) {
+    Column {
+        SettingsHint(stringResource(R.string.settings_launcher_help))
+        TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_HOME_SETTINGS)) }) {
+            Text(stringResource(R.string.settings_open_home))
+        }
+        SettingsHint(stringResource(R.string.settings_screensaver_help))
+        TextButton(onClick = {
+            runCatching { context.startActivity(Intent("android.settings.DREAM_SETTINGS")) }
+                .onFailure { context.startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS)) }
+        }) {
+            Text(stringResource(R.string.settings_open_screensaver))
+        }
+        SettingsToggleRow(stringResource(R.string.settings_overlay), state.overlayEnabled) { enabled ->
+            if (enabled && !Settings.canDrawOverlays(context)) {
+                context.startActivity(
+                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")),
+                )
+                viewModel.setOverlayEnabled(false)
             } else {
-                TextButton(
-                    onClick = onConfirm,
-                    enabled = ready,
-                ) {
-                    Text(label)
-                }
+                viewModel.setOverlayEnabled(enabled)
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.settings_reset_cancel))
-            }
-        },
-    )
-}
-
-@Composable
-private fun ChipRow(content: @Composable () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp)
-            .padding(bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        content()
+        }
+        SettingsHint(stringResource(R.string.settings_overlay_help))
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-    )
-}
-
-@Composable
-private fun ToggleRow(
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    ListItem(
-        modifier = Modifier.clickable { onCheckedChange(!checked) },
-        headlineContent = { Text(title) },
-        trailingContent = {
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-            )
-        },
-    )
-}
-
-private fun warnIfNoWidgets(
-    context: android.content.Context,
-    showTime: Boolean,
-    showDate: Boolean,
-    showWeather: Boolean,
-    showSpotify: Boolean,
-) {
-    if (!showTime && !showDate && !showWeather && !showSpotify) {
-        Toast.makeText(
-            context,
-            context.getString(R.string.toast_no_widgets),
-            Toast.LENGTH_SHORT,
-        ).show()
+private fun AboutSettings(onReset: () -> Unit, onGitHub: () -> Unit) {
+    Column {
+        SettingsHint(stringResource(R.string.settings_license))
+        HorizontalDivider(Modifier.padding(vertical = 12.dp))
+        SettingsSectionLabel(stringResource(R.string.settings_danger_zone))
+        SettingsHint(stringResource(R.string.settings_reset_all_help))
+        OutlinedButton(
+            onClick = onReset,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                contentColor = androidx.compose.material3.MaterialTheme.colorScheme.error,
+            ),
+        ) {
+            Text(stringResource(R.string.settings_reset_all))
+        }
+        TextButton(onClick = onGitHub, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.settings_github))
+        }
     }
 }
 
-@Composable
-private fun themeModeLabel(mode: ThemeMode): String = stringResource(
+@Composable private fun settingsThemeLabel(mode: ThemeMode): String = stringResource(
     when (mode) {
         ThemeMode.SYSTEM -> R.string.theme_system
         ThemeMode.LIGHT -> R.string.theme_light
@@ -896,8 +647,7 @@ private fun themeModeLabel(mode: ThemeMode): String = stringResource(
     },
 )
 
-@Composable
-private fun backgroundModeLabel(mode: BackgroundMode): String = stringResource(
+@Composable private fun settingsBackgroundLabel(mode: BackgroundMode): String = stringResource(
     when (mode) {
         BackgroundMode.SOLID -> R.string.bg_solid
         BackgroundMode.MONET -> R.string.bg_monet
@@ -909,8 +659,7 @@ private fun backgroundModeLabel(mode: BackgroundMode): String = stringResource(
     },
 )
 
-@Composable
-private fun clockStyleLabel(style: ClockStyle): String = stringResource(
+@Composable private fun settingsClockStyleLabel(style: ClockStyle): String = stringResource(
     when (style) {
         ClockStyle.ANALOG -> R.string.clock_analog
         ClockStyle.DIGITAL -> R.string.clock_digital
@@ -918,8 +667,7 @@ private fun clockStyleLabel(style: ClockStyle): String = stringResource(
     },
 )
 
-@Composable
-private fun spotifyStyleLabel(style: SpotifyModuleStyle): String = stringResource(
+@Composable private fun settingsSpotifyStyleLabel(style: SpotifyModuleStyle): String = stringResource(
     when (style) {
         SpotifyModuleStyle.ONE_LINER -> R.string.spotify_style_oneliner
         SpotifyModuleStyle.CARD -> R.string.spotify_style_card
@@ -927,8 +675,7 @@ private fun spotifyStyleLabel(style: SpotifyModuleStyle): String = stringResourc
     },
 )
 
-@Composable
-private fun musicSourceLabel(source: MusicSource): String = stringResource(
+@Composable private fun settingsMusicSourceLabel(source: MusicSource): String = stringResource(
     when (source) {
         MusicSource.SYSTEM -> R.string.music_source_system
         MusicSource.SPOTIFY -> R.string.music_source_spotify
@@ -936,8 +683,7 @@ private fun musicSourceLabel(source: MusicSource): String = stringResource(
     },
 )
 
-@Composable
-private fun weatherEffectLabel(effect: WeatherEffect): String = stringResource(
+@Composable private fun settingsWeatherEffectLabel(effect: WeatherEffect): String = stringResource(
     when (effect) {
         WeatherEffect.AUTO -> R.string.weather_fx_auto
         WeatherEffect.CLEAR -> R.string.weather_fx_clear
@@ -949,3 +695,14 @@ private fun weatherEffectLabel(effect: WeatherEffect): String = stringResource(
         WeatherEffect.NONE -> R.string.weather_fx_none
     },
 )
+
+@Composable
+private fun settingsWidgetsSummary(state: ClockUiState): String {
+    val on = buildList {
+        if (state.showTime) add(stringResource(R.string.settings_show_time))
+        if (state.showDate) add(stringResource(R.string.settings_show_date))
+        if (state.showWeather) add(stringResource(R.string.settings_show_weather_mod))
+        if (state.showSpotify) add(stringResource(R.string.settings_show_spotify_mod))
+    }
+    return on.joinToString(" · ").ifBlank { "—" }
+}

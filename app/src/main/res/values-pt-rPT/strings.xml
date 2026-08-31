@@ -28,7 +28,7 @@
     <string name="spotify_error">Não foi possível ligar ao Spotify</string>
     <string name="lastfm_need_setup">Adiciona a API key e o nome de utilizador Last.fm nas Definições.</string>
     <string name="settings_music">Música</string>
-    <string name="settings_music_source">Fonte de música</string>
+    <string name="settings_music_source">Serviço de música</string>
     <string name="settings_music_source_help">Escolhe o serviço de música.</string>
     <string name="music_source_system">Dispositivo (Android)</string>
     <string name="music_source_spotify">Spotify</string>
@@ -59,7 +59,13 @@
     <string name="settings_spotify">Spotify</string>
     <string name="settings_client_id">Client ID</string>
     <string name="settings_client_id_help">Cria uma app em developer.spotify.com/dashboard. No portal define o pacote Android com.miguelthemann.remarkable, o URI de redirecionamento remarkable://callback e a impressão digital SHA-1 de debug ou release (keytool -list -v -keystore …).</string>
-    <string name="settings_accent_custom_help">Escolhe um preset, arrasta na roda de cores ou escreve um HEX.</string>
+    <string name="settings_accent_custom">Destaque personalizado</string>
+    <string name="settings_color_picker_title">Escolher cor</string>
+    <string name="settings_color_done">Concluir</string>
+    <string name="settings_color_brightness">Brilho: %1$d%%</string>
+    <string name="settings_weather_gps">Localização automática</string>
+    <string name="settings_burn_in_on">Ativo</string>
+    <string name="settings_burn_in_off">Desativado</string>
     <string name="settings_about">Acerca</string>
     <string name="settings_danger_zone">Repor</string>
     <string name="settings_reset_all">Repor todas as definições</string>
