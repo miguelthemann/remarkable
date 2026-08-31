@@ -57,10 +57,7 @@ Instala o JDK 17 do Eclipse Temurin, pelo repositório que o Fedora fornece:
 ```bash
 sudo dnf install git wget unzip android-tools
 sudo dnf install adoptium-temurin-java-repository
-<<<<<<< HEAD
 sudo fedora-third-party enable
-=======
->>>>>>> eeae49490c2d7b421a9f89575e1a68a5a36737e4
 sudo dnf install temurin-17-jdk
 ```
 
