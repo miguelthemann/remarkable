@@ -12,3 +12,5 @@ val TealContainer = Color(0xFF9EF1F0)
 val Cream = Color(0xFFFAFDFB)
 val NightBackground = Color(0xFF0E1413)
 val NightSurface = Color(0xFF171D1C)
+
+fun Color.Companion.fromArgbLong(argb: Long): Color = Color(argb.toInt())

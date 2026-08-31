@@ -10,14 +10,18 @@ import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -52,19 +56,21 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miguelthemann.remarkable.R
+import com.miguelthemann.remarkable.prefs.BackgroundMode
+import com.miguelthemann.remarkable.prefs.ClockStyle
+import com.miguelthemann.remarkable.prefs.ThemeMode
 import com.miguelthemann.remarkable.spotify.SpotifyStatus
+import com.miguelthemann.remarkable.ui.ambient.AmbientBackground
+import com.miguelthemann.remarkable.ui.ambient.rememberAmbientPalette
+import com.miguelthemann.remarkable.ui.burnin.BurnInProtectedContent
 import com.miguelthemann.remarkable.weather.celsiusToFahrenheit
 import com.miguelthemann.remarkable.weather.weatherIcon
 import com.miguelthemann.remarkable.weather.weatherLabelRes
-import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
@@ -91,74 +97,135 @@ fun ClockScreen(
     }
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))
+                        Icon(
+                            Icons.Outlined.Settings,
+                            contentDescription = stringResource(R.string.settings),
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+                ),
             )
         },
     ) { inner ->
-        BoxWithConstraints(
+        DeskClockContent(
+            state = state,
+            viewModel = viewModel,
+            immersive = false,
+            onOpenSettings = onOpenSettings,
+            onRequestLocation = {
+                permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+            },
             modifier = Modifier
                 .padding(inner)
-                .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+fun DeskClockContent(
+    state: ClockUiState,
+    viewModel: ClockViewModel,
+    immersive: Boolean,
+    @Suppress("UNUSED_PARAMETER") onOpenSettings: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    onRequestLocation: (() -> Unit)? = null,
+) {
+    val dark = when (state.themeMode) {
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+        else -> isSystemInDarkTheme() || state.nightDim
+    }
+    val palette = rememberAmbientPalette(
+        mode = state.backgroundMode,
+        now = state.now,
+        weather = state.weather,
+        accentArgb = state.accentArgb,
+        customBgArgb = state.customBgArgb,
+        darkTheme = dark || state.nightDim,
+    )
+
+    Box(modifier = modifier.fillMaxSize()) {
+        AmbientBackground(
+            palette = palette,
+            imagePath = state.backgroundImagePath,
+            useImage = state.backgroundMode == BackgroundMode.IMAGE,
+            darkTheme = dark || state.nightDim,
+        )
+        BurnInProtectedContent(
+            enabled = state.burnInProtection,
+            shiftDp = state.burnInShiftDp,
+            intervalSec = state.burnInIntervalSec,
+            smartPixels = state.smartPixels,
+            smartPixelsStrength = state.smartPixelsStrength,
         ) {
-            val landscape = maxWidth > maxHeight && maxWidth >= 700.dp
-            if (landscape) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(28.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ClockHero(
-                        now = state.now,
-                        use24Hour = state.use24Hour,
-                        showSeconds = state.showSeconds,
-                        modifier = Modifier.weight(1.1f),
-                    )
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = if (immersive) 24.dp else 8.dp),
+            ) {
+                val landscape = maxWidth > maxHeight
+                if (landscape) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ClockHero(
+                            state = state,
+                            modifier = Modifier
+                                .weight(1.15f)
+                                .fillMaxHeight(),
+                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            if (state.showWeather) {
+                                Box(Modifier = Modifier.offset(state.modules.weatherX.dp, state.modules.weatherY.dp)) {
+                                    WeatherCard(state, onRequestLocation)
+                                }
+                            }
+                            if (state.showSpotify) {
+                                Box(modifier = Modifier.offset(state.modules.spotifyX.dp, state.modules.spotifyY.dp)) {
+                                    SpotifyCard(state, viewModel)
+                                }
+                            }
+                        }
+                    }
+                } else {
                     Column(
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxSize()
                             .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        WeatherCard(
-                            state = state,
-                            onRequestLocation = {
-                                permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                            },
-                        )
-                        SpotifyCard(state = state, viewModel = viewModel)
+                        ClockHero(state = state)
+                        if (state.showWeather) {
+                            Spacer(Modifier.height(16.dp))
+                            Box(modifier = Modifier.offset(state.modules.weatherX.dp, state.modules.weatherY.dp)) {
+                                WeatherCard(state, onRequestLocation)
+                            }
+                        }
+                        if (state.showSpotify) {
+                            Spacer(Modifier.height(12.dp))
+                            Box(modifier = Modifier.offset(state.modules.spotifyX.dp, state.modules.spotifyY.dp)) {
+                                SpotifyCard(state, viewModel)
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
                     }
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    ClockHero(
-                        now = state.now,
-                        use24Hour = state.use24Hour,
-                        showSeconds = state.showSeconds,
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    WeatherCard(
-                        state = state,
-                        onRequestLocation = {
-                            permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                        },
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    SpotifyCard(state = state, viewModel = viewModel)
-                    Spacer(Modifier.height(16.dp))
                 }
             }
         }
@@ -167,74 +234,80 @@ fun ClockScreen(
 
 @Composable
 private fun ClockHero(
-    now: ZonedDateTime,
-    use24Hour: Boolean,
-    showSeconds: Boolean,
+    state: ClockUiState,
     modifier: Modifier = Modifier,
 ) {
-    val pattern = buildString {
-        append(if (use24Hour) "HH:mm" else "h:mm")
-        if (showSeconds) append(":ss")
-        if (!use24Hour) append(" a")
-    }
-    val formatted = now.format(DateTimeFormatter.ofPattern(pattern))
-    val date = now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))
-    val weekday = now.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
-    val timeDescription = stringResource(R.string.clock_content_description, formatted)
+    val date = state.now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))
+    val weekday = state.now.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        AnalogClock(now = now)
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = formatted,
-            style = MaterialTheme.typography.displayLarge.copy(
-                fontSize = if (showSeconds) 64.sp else 80.sp,
-            ),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            modifier = Modifier.semantics {
-                contentDescription = timeDescription
-            },
-        )
-        Text(
-            text = weekday.replaceFirstChar { it.titlecase(Locale.getDefault()) },
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = date,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Box(modifier = Modifier.offset(state.modules.timeX.dp, state.modules.timeY.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                when (state.clockStyle) {
+                    ClockStyle.ANALOG -> AnalogClock(now = state.now)
+                    ClockStyle.DIGITAL -> DigitalClock(
+                        now = state.now,
+                        use24Hour = state.use24Hour,
+                        showSeconds = state.showSeconds,
+                    )
+                    ClockStyle.BOTH -> {
+                        AnalogClock(now = state.now, size = 160.dp)
+                        Spacer(Modifier.height(8.dp))
+                        DigitalClock(
+                            now = state.now,
+                            use24Hour = state.use24Hour,
+                            showSeconds = state.showSeconds,
+                        )
+                    }
+                }
+            }
+        }
+        if (state.showDate) {
+            Box(modifier = Modifier.offset(state.modules.dateX.dp, state.modules.dateY.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = weekday.replaceFirstChar { it.titlecase(Locale.getDefault()) },
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = date,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun WeatherCard(
     state: ClockUiState,
-    onRequestLocation: () -> Unit,
+    onRequestLocation: (() -> Unit)?,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
+        ),
         shape = RoundedCornerShape(28.dp),
     ) {
         Column(Modifier.padding(20.dp)) {
-            Text(
-                text = stringResource(R.string.weather_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
+            Text(stringResource(R.string.weather_title), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(12.dp))
             val weather = state.weather
             when {
                 weather != null -> {
                     val temp = if (state.useCelsius) {
-                        "${weather.temperatureC.toInt()}Â°C"
+                        "${weather.temperatureC.toInt()}°C"
                     } else {
-                        "${weather.temperatureC.celsiusToFahrenheit().toInt()}Â°F"
+                        "${weather.temperatureC.celsiusToFahrenheit().toInt()}°F"
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -269,8 +342,10 @@ private fun WeatherCard(
                 }
                 state.weatherMessage is WeatherMessage.NeedsLocation -> {
                     Text(stringResource(R.string.weather_permission))
-                    TextButton(onClick = onRequestLocation) {
-                        Text(stringResource(R.string.grant_location))
+                    if (onRequestLocation != null) {
+                        TextButton(onClick = onRequestLocation) {
+                            Text(stringResource(R.string.grant_location))
+                        }
                     }
                 }
                 state.weatherMessage is WeatherMessage.Error -> {
@@ -299,7 +374,9 @@ private fun SpotifyCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
+        ),
         shape = RoundedCornerShape(28.dp),
     ) {
         Column(Modifier.padding(20.dp)) {
@@ -327,7 +404,7 @@ private fun SpotifyCard(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         Artwork(playing?.artwork)
-                        Column(Modifier.weight(1f)) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = playing?.title ?: stringResource(R.string.spotify_idle),
                                 style = MaterialTheme.typography.titleLarge,
@@ -352,7 +429,10 @@ private fun SpotifyCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         FilledTonalIconButton(onClick = viewModel::skipPrevious) {
-                            Icon(Icons.Outlined.SkipPrevious, contentDescription = stringResource(R.string.skip_previous))
+                            Icon(
+                                Icons.Outlined.SkipPrevious,
+                                contentDescription = stringResource(R.string.skip_previous),
+                            )
                         }
                         FilledTonalIconButton(
                             onClick = viewModel::playPause,
@@ -367,7 +447,10 @@ private fun SpotifyCard(
                             )
                         }
                         FilledTonalIconButton(onClick = viewModel::skipNext) {
-                            Icon(Icons.Outlined.SkipNext, contentDescription = stringResource(R.string.skip_next))
+                            Icon(
+                                Icons.Outlined.SkipNext,
+                                contentDescription = stringResource(R.string.skip_next),
+                            )
                         }
                     }
                 }

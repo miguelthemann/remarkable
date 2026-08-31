@@ -233,3 +233,15 @@ app/src/main/java/com/miguelthemann/remarkable/
 - Português de Portugal: `app/src/main/res/values-pt-rPT/`
 
 O Android escolhe `pt-PT` quando o idioma do sistema (ou o idioma por aplicação, Android 13+) é português de Portugal. Os restantes locales usam inglês.
+
+## Temas, fundo e burn-in
+
+Nas Definições podes escolher:
+
+- Tema: sistema, claro, escuro ou **Monet** (Material You, API 31+)
+- Cor de destaque (quando não usas Monet puro)
+- Fundo: sólido, Monet, reativo à meteorologia, reativo à hora do dia, destaque, **cor sólida** (presets + HSV + HEX) ou **imagem**
+- Estilo do relógio: analógico, digital ou ambos
+- Posição dos módulos (hora, data, meteorologia, Spotify)
+- Proteção contra burn-in (deslocamento) e **smart pixels**
+- Launcher (HOME), protetor de ecrã (Daydream) e sobreposição sobre outras apps

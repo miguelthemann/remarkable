@@ -6,9 +6,16 @@ package com.miguelthemann.remarkable.ui.clock
 
 import android.app.Application
 import android.location.Location
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.miguelthemann.remarkable.location.DeviceLocation
+import com.miguelthemann.remarkable.prefs.AccentPreset
+import com.miguelthemann.remarkable.prefs.BackgroundImageStore
+import com.miguelthemann.remarkable.prefs.BackgroundMode
+import com.miguelthemann.remarkable.prefs.ClockStyle
+import com.miguelthemann.remarkable.prefs.ModuleOffsets
+import com.miguelthemann.remarkable.prefs.ThemeMode
 import com.miguelthemann.remarkable.prefs.UserPreferences
 import com.miguelthemann.remarkable.prefs.UserSettings
 import com.miguelthemann.remarkable.spotify.SpotifyRemote
@@ -36,6 +43,22 @@ data class ClockUiState(
     val useCelsius: Boolean = true,
     val city: String = "",
     val spotifyClientId: String = "",
+    val themeMode: ThemeMode = ThemeMode.MONET,
+    val backgroundMode: BackgroundMode = BackgroundMode.MONET,
+    val clockStyle: ClockStyle = ClockStyle.BOTH,
+    val accentArgb: Long = AccentPreset.TEAL.argb,
+    val customBgArgb: Long = 0xFFF7F1E5,
+    val backgroundImagePath: String = "",
+    val showDate: Boolean = true,
+    val showWeather: Boolean = true,
+    val showSpotify: Boolean = true,
+    val modules: ModuleOffsets = ModuleOffsets(),
+    val burnInProtection: Boolean = true,
+    val burnInShiftDp: Int = 8,
+    val burnInIntervalSec: Int = 60,
+    val smartPixels: Boolean = false,
+    val smartPixelsStrength: Float = 0.35f,
+    val overlayEnabled: Boolean = false,
     val weather: WeatherSnapshot? = null,
     val weatherMessage: WeatherMessage = WeatherMessage.Idle,
     val spotify: SpotifyStatus = SpotifyStatus.Idle,
@@ -100,6 +123,22 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                 useCelsius = settings.useCelsius,
                 city = settings.city,
                 spotifyClientId = settings.spotifyClientId,
+                themeMode = settings.themeMode,
+                backgroundMode = settings.backgroundMode,
+                clockStyle = settings.clockStyle,
+                accentArgb = settings.accentArgb,
+                customBgArgb = settings.customBgArgb,
+                backgroundImagePath = settings.backgroundImagePath,
+                showDate = settings.showDate,
+                showWeather = settings.showWeather,
+                showSpotify = settings.showSpotify,
+                modules = settings.modules,
+                burnInProtection = settings.burnInProtection,
+                burnInShiftDp = settings.burnInShiftDp,
+                burnInIntervalSec = settings.burnInIntervalSec,
+                smartPixels = settings.smartPixels,
+                smartPixelsStrength = settings.smartPixelsStrength,
+                overlayEnabled = settings.overlayEnabled,
             )
         }
     }
@@ -190,9 +229,63 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     fun setCity(value: String) = viewModelScope.launch { preferences.setCity(value) }
     fun setSpotifyClientId(value: String) =
         viewModelScope.launch { preferences.setSpotifyClientId(value) }
+    fun setThemeMode(value: ThemeMode) = viewModelScope.launch { preferences.setThemeMode(value) }
+    fun setBackgroundMode(value: BackgroundMode) =
+        viewModelScope.launch { preferences.setBackgroundMode(value) }
+    fun setClockStyle(value: ClockStyle) = viewModelScope.launch { preferences.setClockStyle(value) }
+    fun setAccentArgb(value: Long) = viewModelScope.launch { preferences.setAccentArgb(value) }
+    fun setCustomBgArgb(value: Long) = viewModelScope.launch { preferences.setCustomBgArgb(value) }
+    fun importBackgroundImage(uri: Uri) = viewModelScope.launch {
+        val path = BackgroundImageStore.importFromUri(getApplication(), uri)
+        preferences.setBackgroundImagePath(path)
+        preferences.setBackgroundMode(BackgroundMode.IMAGE)
+    }
+    fun clearBackgroundImage() = viewModelScope.launch {
+        BackgroundImageStore.clear(getApplication())
+        preferences.setBackgroundImagePath("")
+        if (_uiState.value.backgroundMode == BackgroundMode.IMAGE) {
+            preferences.setBackgroundMode(BackgroundMode.CUSTOM_COLOR)
+        }
+    }
+    fun setShowDate(value: Boolean) = viewModelScope.launch { preferences.setShowDate(value) }
+    fun setShowWeather(value: Boolean) = viewModelScope.launch { preferences.setShowWeather(value) }
+    fun setShowSpotify(value: Boolean) = viewModelScope.launch { preferences.setShowSpotify(value) }
+    fun setModuleOffsets(modules: ModuleOffsets) =
+        viewModelScope.launch { preferences.setModuleOffsets(modules) }
+    fun nudgeModule(axis: ModuleAxis, delta: Float) {
+        val m = _uiState.value.modules
+        val next = when (axis) {
+            ModuleAxis.TIME_X -> m.copy(timeX = (m.timeX + delta).coerceIn(-80f, 80f))
+            ModuleAxis.TIME_Y -> m.copy(timeY = (m.timeY + delta).coerceIn(-80f, 80f))
+            ModuleAxis.DATE_X -> m.copy(dateX = (m.dateX + delta).coerceIn(-80f, 80f))
+            ModuleAxis.DATE_Y -> m.copy(dateY = (m.dateY + delta).coerceIn(-80f, 80f))
+            ModuleAxis.WEATHER_X -> m.copy(weatherX = (m.weatherX + delta).coerceIn(-80f, 80f))
+            ModuleAxis.WEATHER_Y -> m.copy(weatherY = (m.weatherY + delta).coerceIn(-80f, 80f))
+            ModuleAxis.SPOTIFY_X -> m.copy(spotifyX = (m.spotifyX + delta).coerceIn(-80f, 80f))
+            ModuleAxis.SPOTIFY_Y -> m.copy(spotifyY = (m.spotifyY + delta).coerceIn(-80f, 80f))
+        }
+        setModuleOffsets(next)
+    }
+    fun resetModules() = setModuleOffsets(ModuleOffsets())
+    fun setBurnInProtection(value: Boolean) =
+        viewModelScope.launch { preferences.setBurnInProtection(value) }
+    fun setBurnInShiftDp(value: Int) =
+        viewModelScope.launch { preferences.setBurnInShiftDp(value) }
+    fun setBurnInIntervalSec(value: Int) =
+        viewModelScope.launch { preferences.setBurnInIntervalSec(value) }
+    fun setSmartPixels(value: Boolean) =
+        viewModelScope.launch { preferences.setSmartPixels(value) }
+    fun setSmartPixelsStrength(value: Float) =
+        viewModelScope.launch { preferences.setSmartPixelsStrength(value) }
+    fun setOverlayEnabled(value: Boolean) =
+        viewModelScope.launch { preferences.setOverlayEnabled(value) }
 
     override fun onCleared() {
         spotifyRemote.disconnect()
         super.onCleared()
     }
+}
+
+enum class ModuleAxis {
+    TIME_X, TIME_Y, DATE_X, DATE_Y, WEATHER_X, WEATHER_Y, SPOTIFY_X, SPOTIFY_Y,
 }

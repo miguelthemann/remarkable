@@ -37,7 +37,11 @@ class MainActivity : ComponentActivity() {
                 window.attributes = lp
             }
 
-            RemarkableTheme(nightDim = state.nightDim) {
+            RemarkableTheme(
+                themeMode = state.themeMode,
+                nightDim = state.nightDim,
+                accentArgb = state.accentArgb,
+            ) {
                 RemarkableNav(viewModel = viewModel)
             }
         }
