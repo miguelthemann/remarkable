@@ -5,6 +5,8 @@
 package com.miguelthemann.remarkable.ui
 
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,7 +39,6 @@ fun RemarkableNav(viewModel: ClockViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (!state.prefsReady) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            // Spinner of destiny — prefs are still waking up from DataStore naptime.
             CircularProgressIndicator()
         }
         return
@@ -46,15 +47,21 @@ fun RemarkableNav(viewModel: ClockViewModel) {
     val start = if (state.onboardingDone) ROUTE_CLOCK else ROUTE_ONBOARDING
     val navController = rememberNavController()
 
+    // Transitions are declared on each destination too — NavHost defaults alone were too shy
+    // to notice, and per-route specs actually show up on screen. Trust issues, mostly.
     NavHost(
         navController = navController,
         startDestination = start,
-        enterTransition = { enterFor(initialState, targetState) },
-        exitTransition = { exitFor(initialState, targetState) },
+        enterTransition = { defaultEnter(initialState, targetState) },
+        exitTransition = { defaultExit(initialState, targetState) },
         popEnterTransition = { remarkableEnterPop() },
         popExitTransition = { remarkableExitPop() },
     ) {
-        composable(ROUTE_ONBOARDING) {
+        composable(
+            route = ROUTE_ONBOARDING,
+            enterTransition = { remarkableEnterFadeScale() },
+            exitTransition = { remarkableExitFadeScale() },
+        ) {
             OnboardingScreen(
                 onFinished = {
                     viewModel.completeOnboarding()
@@ -64,18 +71,29 @@ fun RemarkableNav(viewModel: ClockViewModel) {
                 },
             )
         }
-        composable(ROUTE_CLOCK) {
+        composable(
+            route = ROUTE_CLOCK,
+            enterTransition = { remarkableEnterFadeScale() },
+            exitTransition = { remarkableExitForward() },
+            popEnterTransition = { remarkableEnterPop() },
+            popExitTransition = { remarkableExitFadeScale() },
+        ) {
             ClockScreen(
                 viewModel = viewModel,
                 onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
             )
         }
-        composable(ROUTE_SETTINGS) {
+        composable(
+            route = ROUTE_SETTINGS,
+            enterTransition = { remarkableEnterForward() },
+            exitTransition = { remarkableExitPop() },
+            popEnterTransition = { remarkableEnterForward() },
+            popExitTransition = { remarkableExitPop() },
+        ) {
             SettingsScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onFactoryResetDone = {
-                    // Nuclear option succeeded — send them back to day one.
                     navController.navigate(ROUTE_ONBOARDING) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -85,20 +103,20 @@ fun RemarkableNav(viewModel: ClockViewModel) {
     }
 }
 
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.enterFor(
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.defaultEnter(
     from: NavBackStackEntry,
     to: NavBackStackEntry,
-) = when {
+): EnterTransition = when {
     from.destination.route == ROUTE_ONBOARDING && to.destination.route == ROUTE_CLOCK ->
         remarkableEnterFadeScale()
     to.destination.route == ROUTE_SETTINGS -> remarkableEnterForward()
     else -> remarkableEnterFadeScale()
 }
 
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.exitFor(
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.defaultExit(
     from: NavBackStackEntry,
     to: NavBackStackEntry,
-) = when {
+): ExitTransition = when {
     from.destination.route == ROUTE_ONBOARDING && to.destination.route == ROUTE_CLOCK ->
         remarkableExitFadeScale()
     to.destination.route == ROUTE_SETTINGS -> remarkableExitForward()

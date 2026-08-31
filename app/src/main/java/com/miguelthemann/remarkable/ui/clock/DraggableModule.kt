@@ -6,6 +6,7 @@ package com.miguelthemann.remarkable.ui.clock
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -20,11 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInParent
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -33,9 +31,10 @@ import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 
 /**
- * @param editMode when true, the module can be dragged immediately.
- * Long-press to enter edit mode is handled by the parent via [onBoundsChanged] hit-testing
- * because Compose gesture arenas are a dark forest and we got lost there once.
+ * Desk widget that can be rearranged.
+ *
+ * Outside edit mode: long-press then drag (claims the gesture so Settings behind never steals it).
+ * In edit mode: drag immediately. I don't know how Compose gesture arenas work but this does, so gg.
  */
 @Composable
 fun DraggableModule(
@@ -43,7 +42,7 @@ fun DraggableModule(
     fracY: Float,
     parentSize: IntSize,
     editMode: Boolean,
-    onBoundsChanged: (Rect) -> Unit,
+    onEnterEditMode: () -> Unit,
     onMoved: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
@@ -51,11 +50,19 @@ fun DraggableModule(
     var size by remember { mutableStateOf(IntSize.Zero) }
     var drag by remember { mutableStateOf(Offset.Zero) }
 
-    val baseX = (fracX * parentSize.width - size.width / 2f)
-    val baseY = (fracY * parentSize.height - size.height / 2f)
+    val baseX = if (size.width > 0 && parentSize.width > 0) {
+        fracX * parentSize.width - size.width / 2f
+    } else {
+        0f
+    }
+    val baseY = if (size.height > 0 && parentSize.height > 0) {
+        fracY * parentSize.height - size.height / 2f
+    } else {
+        0f
+    }
 
     fun commitDrag() {
-        if (parentSize.width > 0 && parentSize.height > 0 && size.width > 0) {
+        if (parentSize.width > 0 && parentSize.height > 0 && size.width > 0 && size.height > 0) {
             val cx = (baseX + drag.x + size.width / 2f) / parentSize.width
             val cy = (baseY + drag.y + size.height / 2f) / parentSize.height
             onMoved(cx.coerceIn(0.05f, 0.95f), cy.coerceIn(0.05f, 0.95f))
@@ -65,9 +72,8 @@ fun DraggableModule(
 
     Box(
         modifier = modifier
-            .zIndex(if (editMode) 2f else 1f)
+            .zIndex(if (editMode) 5f else 2f)
             .onSizeChanged { size = it }
-            .onGloballyPositioned { onBoundsChanged(it.boundsInParent()) }
             .offset {
                 IntOffset(
                     (baseX + drag.x).roundToInt(),
@@ -75,16 +81,16 @@ fun DraggableModule(
                 )
             }
             .graphicsLayer {
-                scaleX = if (editMode) 1.04f else 1f
-                scaleY = if (editMode) 1.04f else 1f
+                scaleX = if (editMode) 1.05f else 1f
+                scaleY = if (editMode) 1.05f else 1f
             }
             .then(
                 if (editMode) {
                     Modifier
-                        .shadow(10.dp, RoundedCornerShape(20.dp))
+                        .shadow(12.dp, RoundedCornerShape(20.dp))
                         .border(
                             2.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
                             RoundedCornerShape(20.dp),
                         )
                         .clip(RoundedCornerShape(20.dp))
@@ -92,24 +98,31 @@ fun DraggableModule(
                     Modifier
                 },
             )
-            .padding(4.dp)
-            .then(
+            .padding(8.dp)
+            .pointerInput(editMode, parentSize, fracX, fracY) {
                 if (editMode) {
-                    // Only consume pointers while editing so long-press can reach the parent otherwise.
-                    Modifier.pointerInput(parentSize, fracX, fracY) {
-                        detectDragGestures(
-                            onDragEnd = { commitDrag() },
-                            onDragCancel = { drag = Offset.Zero },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                drag += amount
-                            },
-                        )
-                    }
+                    detectDragGestures(
+                        onDragEnd = { commitDrag() },
+                        onDragCancel = { drag = Offset.Zero },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            drag += amount
+                        },
+                    )
                 } else {
-                    Modifier
-                },
-            ),
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = {
+                            onEnterEditMode()
+                        },
+                        onDragEnd = { commitDrag() },
+                        onDragCancel = { drag = Offset.Zero },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            drag += amount
+                        },
+                    )
+                }
+            },
     ) {
         content()
     }

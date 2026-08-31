@@ -32,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -112,9 +111,6 @@ fun DeskClockContent(
     )
 
     var layoutEditMode by remember { mutableStateOf(false) }
-    // Non-snapshot map: updated from layout, read on long-press (avoids recomposition storms).
-    // I don't know how this works but it does so gg.
-    val moduleBounds = remember { mutableMapOf<DeskModule, Rect>() }
 
     Box(
         modifier = modifier
@@ -144,34 +140,30 @@ fun DeskClockContent(
             smartPixelsStrength = state.smartPixelsStrength,
             modifier = Modifier.fillMaxSize(),
         ) {
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(layoutEditMode, onOpenSettings) {
-                        if (layoutEditMode) {
-                            detectTapGestures(onTap = { layoutEditMode = false })
-                        } else {
-                            detectTapGestures(
-                                onLongPress = { offset ->
-                                    val hitModule = moduleBounds.values.any { it.contains(offset) }
-                                    if (hitModule) {
-                                        layoutEditMode = true
-                                    } else {
-                                        onOpenSettings?.invoke()
-                                    }
-                                },
-                            )
-                        }
-                    },
-            ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val size = IntSize(constraints.maxWidth, constraints.maxHeight)
+
+                // Catcher sits under modules in the SAME parent so empty space → Settings,
+                // but a finger on a widget hits the widget first (siblings, later on top).
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(0f)
+                        .pointerInput(layoutEditMode, onOpenSettings) {
+                            if (layoutEditMode) {
+                                detectTapGestures(onTap = { layoutEditMode = false })
+                            } else if (onOpenSettings != null) {
+                                detectTapGestures(onLongPress = { onOpenSettings() })
+                            }
+                        },
+                )
 
                 DraggableModule(
                     fracX = state.modules.timeX,
                     fracY = state.modules.timeY,
                     parentSize = size,
                     editMode = layoutEditMode,
-                    onBoundsChanged = { moduleBounds[DeskModule.TIME] = it },
+                    onEnterEditMode = { layoutEditMode = true },
                     onMoved = { x, y ->
                         viewModel.setModuleOffsets(state.modules.withModule(DeskModule.TIME, x, y))
                     },
@@ -185,7 +177,7 @@ fun DeskClockContent(
                         fracY = state.modules.dateY,
                         parentSize = size,
                         editMode = layoutEditMode,
-                        onBoundsChanged = { moduleBounds[DeskModule.DATE] = it },
+                        onEnterEditMode = { layoutEditMode = true },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(state.modules.withModule(DeskModule.DATE, x, y))
                         },
@@ -200,7 +192,7 @@ fun DeskClockContent(
                         fracY = state.modules.weatherY,
                         parentSize = size,
                         editMode = layoutEditMode,
-                        onBoundsChanged = { moduleBounds[DeskModule.WEATHER] = it },
+                        onEnterEditMode = { layoutEditMode = true },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(
                                 state.modules.withModule(DeskModule.WEATHER, x, y),
@@ -217,7 +209,7 @@ fun DeskClockContent(
                         fracY = state.modules.spotifyY,
                         parentSize = size,
                         editMode = layoutEditMode,
-                        onBoundsChanged = { moduleBounds[DeskModule.SPOTIFY] = it },
+                        onEnterEditMode = { layoutEditMode = true },
                         onMoved = { x, y ->
                             viewModel.setModuleOffsets(
                                 state.modules.withModule(DeskModule.SPOTIFY, x, y),
@@ -234,7 +226,7 @@ fun DeskClockContent(
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .zIndex(3f)
+                    .zIndex(10f)
                     .padding(top = 36.dp)
                     .background(
                         MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
@@ -262,7 +254,6 @@ private fun PeaksLayer(
     weatherCode: Int?,
     effectOverride: WeatherEffect,
 ) {
-    // Own composable with stable args so 250ms clock ticks skip this subtree.
     PeaksWeatherScene(
         hourOfDay = minuteOfDay / 60f,
         weatherCode = weatherCode,
