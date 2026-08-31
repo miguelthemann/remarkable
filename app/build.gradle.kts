@@ -67,11 +67,6 @@ android {
         }
     }
 
-    androidResources {
-        // Single set of resources â€” no density or language APK splits.
-        noCompress += listOf()
-    }
-
     bundle {
         density {
             enableSplit = false
@@ -81,18 +76,6 @@ android {
         }
         language {
             enableSplit = false
-        }
-    }
-
-    splits {
-        density {
-            isEnable = false
-        }
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a")
-            isUniversalApk = false
         }
     }
 }
