@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.miguelthemann.remarkable.prefs.WeatherEffect
+import com.miguelthemann.remarkable.time.isNightHour
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.random.Random
@@ -66,7 +67,11 @@ fun PeaksWeatherScene(
         val t = timeSec
         drawSky(hour, effect)
         if (effect != WeatherEffect.NONE && effect != WeatherEffect.FOG) {
-            drawSun(hour, t, effect)
+            if (isNightHour(hour)) {
+                drawMoon(hour, t)
+            } else {
+                drawSun(hour, t, effect)
+            }
         }
         when (effect) {
             WeatherEffect.CLEAR -> drawClouds(clouds, t, effect)
@@ -136,7 +141,7 @@ private fun DrawScope.drawSky(hour: Float, effect: WeatherEffect) {
 
 private fun skyColors(hour: Float, effect: WeatherEffect): Pair<Color, Color> {
     val base = when {
-        hour < 5f || hour >= 21f -> Color(0xFF0B1320) to Color(0xFF1C2541)
+        isNightHour(hour) -> Color(0xFF0B1320) to Color(0xFF1C2541)
         hour < 7f -> Color(0xFFFFB88C) to Color(0xFF87CEEB)
         hour < 17f -> Color(0xFF7EC8E3) to Color(0xFFB8E0F0)
         hour < 19.5f -> Color(0xFFFF8A65) to Color(0xFF5C6BC0)
@@ -161,6 +166,17 @@ private fun DrawScope.drawSun(hour: Float, t: Float, effect: WeatherEffect) {
     drawCircle(Color(0xFFFFF59D).copy(alpha = glow), radius * 2.4f, Offset(x, y))
     drawCircle(Color(0xFFFFEE58), radius * 1.35f, Offset(x, y))
     drawCircle(Color(0xFFFFFDE7), radius, Offset(x, y))
+}
+
+private fun DrawScope.drawMoon(hour: Float, t: Float) {
+    val night = ((hour - 20f).mod(24f) / 10f).coerceIn(0f, 1f)
+    val x = size.width * (0.78f - night * 0.56f)
+    val y = size.height * (0.2f + sin(night * PI).toFloat() * 0.06f)
+    val pulse = 1f + 0.015f * sin(t * 0.8f)
+    val radius = size.minDimension * 0.055f * pulse
+    drawCircle(Color(0xFFE8EAF6).copy(alpha = 0.22f), radius * 2.4f, Offset(x, y))
+    drawCircle(Color(0xFFF5F5F5), radius * 1.15f, Offset(x, y))
+    drawCircle(Color(0xFF0B1320), radius * 1.05f, Offset(x + radius * 0.42f, y - radius * 0.12f))
 }
 
 private fun DrawScope.drawClouds(clouds: List<CloudSeed>, t: Float, effect: WeatherEffect) {

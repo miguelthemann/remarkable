@@ -8,11 +8,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.FlashOn
+import androidx.compose.material.icons.outlined.Nightlight
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.outlined.WbCloudy
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.miguelthemann.remarkable.R
+import com.miguelthemann.remarkable.time.isNightHour
 
 fun weatherLabel(code: Int): Int = when (code) {
     0 -> R.string.weather_clear
@@ -29,8 +31,8 @@ fun weatherLabel(code: Int): Int = when (code) {
 
 fun weatherLabelRes(code: Int): Int = weatherLabel(code)
 
-fun weatherIcon(code: Int): ImageVector = when (code) {
-    0, 1 -> Icons.Outlined.WbSunny
+fun weatherIcon(code: Int, hour: Int = 12): ImageVector = when (code) {
+    0, 1 -> if (isNightHour(hour)) Icons.Outlined.Nightlight else Icons.Outlined.WbSunny
     2 -> Icons.Outlined.WbCloudy
     3, 45, 48 -> Icons.Outlined.Cloud
     in 51..67, in 80..82 -> Icons.Outlined.WaterDrop

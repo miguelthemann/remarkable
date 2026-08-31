@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.time.ZonedDateTime
@@ -23,12 +24,14 @@ fun AnalogClock(
     now: ZonedDateTime,
     modifier: Modifier = Modifier,
     size: Dp = 196.dp,
+    hourColor: Color = MaterialTheme.colorScheme.onSurface,
+    minuteColor: Color = MaterialTheme.colorScheme.primary,
+    secondColor: Color = MaterialTheme.colorScheme.tertiary,
+    markerColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    trackColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
 ) {
-    val track = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-    val hourColor = MaterialTheme.colorScheme.onSurface
-    val minuteColor = MaterialTheme.colorScheme.primary
-    val secondColor = MaterialTheme.colorScheme.tertiary
-    val marker = MaterialTheme.colorScheme.onSurfaceVariant
+    val track = trackColor
+    val marker = markerColor
 
     Canvas(modifier = modifier.size(size)) {
         val radius = this.size.minDimension / 2f

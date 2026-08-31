@@ -111,6 +111,12 @@ fun DeskClockContent(
     )
 
     var layoutEditMode by remember { mutableStateOf(false) }
+    val moduleColors = rememberDeskModuleColors(
+        darkTheme = dark,
+        hour = state.now.hour,
+        backgroundMode = state.backgroundMode,
+        usePeaks = usePeaks,
+    )
 
     Box(
         modifier = modifier
@@ -140,7 +146,8 @@ fun DeskClockContent(
             smartPixelsStrength = state.smartPixelsStrength,
             modifier = Modifier.fillMaxSize(),
         ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            ProvideDeskModuleColors(moduleColors) {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val size = IntSize(constraints.maxWidth, constraints.maxHeight)
 
                 // Catcher sits under modules in the SAME parent so empty space → Settings,
@@ -245,6 +252,7 @@ fun DeskClockContent(
                         SpotifyModule(state, viewModel)
                     }
                 }
+                }
             }
         }
 
@@ -290,22 +298,47 @@ private fun PeaksLayer(
 
 @Composable
 private fun TimeModule(state: ClockUiState) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        when (state.clockStyle) {
-            ClockStyle.ANALOG -> AnalogClock(now = state.now, size = 168.dp)
-            ClockStyle.DIGITAL -> DigitalClock(
-                now = state.now,
-                use24Hour = state.use24Hour,
-                showSeconds = state.showSeconds,
-            )
-            ClockStyle.BOTH -> {
-                AnalogClock(now = state.now, size = 140.dp)
-                Spacer(Modifier.height(6.dp))
-                DigitalClock(
+    val colors = LocalDeskModuleColors.current
+    ModuleSurface(
+        shape = RoundedCornerShape(28.dp),
+        horizontalPadding = 20.dp,
+        verticalPadding = 16.dp,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            when (state.clockStyle) {
+                ClockStyle.ANALOG -> AnalogClock(
+                    now = state.now,
+                    size = 168.dp,
+                    hourColor = colors.onSurface,
+                    minuteColor = colors.accent,
+                    secondColor = colors.accentSecondary,
+                    markerColor = colors.onSurfaceVariant,
+                    trackColor = colors.outline.copy(alpha = 0.35f),
+                )
+                ClockStyle.DIGITAL -> DigitalClock(
                     now = state.now,
                     use24Hour = state.use24Hour,
                     showSeconds = state.showSeconds,
+                    contentColor = colors.onSurface,
                 )
+                ClockStyle.BOTH -> {
+                    AnalogClock(
+                        now = state.now,
+                        size = 140.dp,
+                        hourColor = colors.onSurface,
+                        minuteColor = colors.accent,
+                        secondColor = colors.accentSecondary,
+                        markerColor = colors.onSurfaceVariant,
+                        trackColor = colors.outline.copy(alpha = 0.35f),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    DigitalClock(
+                        now = state.now,
+                        use24Hour = state.use24Hour,
+                        showSeconds = state.showSeconds,
+                        contentColor = colors.onSurface,
+                    )
+                }
             }
         }
     }
@@ -313,18 +346,25 @@ private fun TimeModule(state: ClockUiState) {
 
 @Composable
 private fun DateModule(state: ClockUiState) {
+    val colors = LocalDeskModuleColors.current
     val date = state.now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))
     val weekday = state.now.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = weekday.replaceFirstChar { it.titlecase(Locale.getDefault()) },
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = date,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+    ModuleSurface(
+        shape = RoundedCornerShape(20.dp),
+        horizontalPadding = 20.dp,
+        verticalPadding = 12.dp,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = weekday.replaceFirstChar { it.titlecase(Locale.getDefault()) },
+                style = MaterialTheme.typography.headlineMedium,
+                color = colors.accent,
+            )
+            Text(
+                text = date,
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.onSurface,
+            )
+        }
     }
 }

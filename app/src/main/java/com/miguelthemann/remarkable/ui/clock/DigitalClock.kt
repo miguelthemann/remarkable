@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -27,6 +28,7 @@ fun DigitalClock(
     showSeconds: Boolean,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     val pattern = buildString {
         append(if (use24Hour) "HH:mm" else "h:mm")
@@ -48,7 +50,7 @@ fun DigitalClock(
                     else -> 80.sp
                 },
             ),
-            color = MaterialTheme.colorScheme.onSurface,
+            color = contentColor,
             textAlign = TextAlign.Center,
             maxLines = 1,
             modifier = Modifier.semantics { contentDescription = description },

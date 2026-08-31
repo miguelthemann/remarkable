@@ -5,7 +5,6 @@
 package com.miguelthemann.remarkable.ui.clock
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,8 +23,6 @@ import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -69,11 +66,12 @@ fun SpotifyModule(
 @Composable
 private fun SpotifyIconBadge(state: ClockUiState) {
     if (!state.showSpotifyIcon) return
+    val colors = LocalDeskModuleColors.current
     Icon(
         imageVector = Icons.Outlined.MusicNote,
         contentDescription = null,
         tint = if (state.useGenericMusicIcon) {
-            MaterialTheme.colorScheme.onSurfaceVariant
+            colors.onSurfaceVariant
         } else {
             Color(0xFF1DB954)
         },
@@ -88,28 +86,33 @@ private fun SpotifyOneLiner(
     viewModel: ClockViewModel,
     modifier: Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .widthIn(max = 420.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    val colors = LocalDeskModuleColors.current
+    ModuleSurface(
+        modifier = modifier.widthIn(max = 420.dp),
+        shape = RoundedCornerShape(20.dp),
+        horizontalPadding = 14.dp,
+        verticalPadding = 10.dp,
+        contentAlignment = Alignment.CenterStart,
     ) {
-        SpotifyIconBadge(state)
-        Text(
-            text = buildSpotifyLine(state, playing),
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        FilledTonalIconButton(onClick = viewModel::playPause, modifier = Modifier.size(36.dp)) {
-            Icon(
-                if (playing?.isPaused != false) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                contentDescription = null,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SpotifyIconBadge(state)
+            Text(
+                text = buildSpotifyLine(state, playing),
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            FilledTonalIconButton(onClick = viewModel::playPause, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    if (playing?.isPaused != false) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                    contentDescription = null,
+                )
+            }
         }
     }
 }
@@ -121,20 +124,22 @@ private fun SpotifyCardStyle(
     viewModel: ClockViewModel,
     modifier: Modifier,
 ) {
-    Card(
+    val colors = LocalDeskModuleColors.current
+    ModuleSurface(
         modifier = modifier.widthIn(max = 420.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
-        ),
         shape = RoundedCornerShape(24.dp),
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 SpotifyIconBadge(state)
-                Text(stringResource(R.string.music_title), style = MaterialTheme.typography.titleLarge)
+                Text(
+                    stringResource(R.string.music_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.onSurface,
+                )
             }
             Spacer(Modifier.height(8.dp))
             SpotifyStatusBody(state, playing, viewModel, showArt = false)
@@ -149,16 +154,11 @@ private fun SpotifyWidgetStyle(
     viewModel: ClockViewModel,
     modifier: Modifier,
 ) {
-    Card(
+    ModuleSurface(
         modifier = modifier.widthIn(max = 420.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
-        ),
         shape = RoundedCornerShape(28.dp),
     ) {
-        Column(Modifier.padding(16.dp)) {
-            SpotifyStatusBody(state, playing, viewModel, showArt = true)
-        }
+        SpotifyStatusBody(state, playing, viewModel, showArt = true)
     }
 }
 
@@ -169,9 +169,10 @@ private fun SpotifyStatusBody(
     viewModel: ClockViewModel,
     showArt: Boolean,
 ) {
+    val colors = LocalDeskModuleColors.current
     when (val music = state.music) {
         MusicStatus.NeedNotificationAccess -> {
-            Text(stringResource(R.string.music_need_notification_access))
+            Text(stringResource(R.string.music_need_notification_access), color = colors.onSurface)
             val context = androidx.compose.ui.platform.LocalContext.current
             Button(
                 onClick = {
@@ -188,20 +189,26 @@ private fun SpotifyStatusBody(
                 Text(stringResource(R.string.music_refresh))
             }
         }
-        MusicStatus.NeedSpotifySetup -> Text(stringResource(R.string.spotify_need_client_id))
-        MusicStatus.NeedLastFmSetup -> Text(stringResource(R.string.lastfm_need_setup))
+        MusicStatus.NeedSpotifySetup -> Text(
+            stringResource(R.string.spotify_need_client_id),
+            color = colors.onSurface,
+        )
+        MusicStatus.NeedLastFmSetup -> Text(
+            stringResource(R.string.lastfm_need_setup),
+            color = colors.onSurface,
+        )
         MusicStatus.NothingPlaying, MusicStatus.Idle -> {
-            Text(stringResource(R.string.spotify_idle))
+            Text(stringResource(R.string.spotify_idle), color = colors.onSurface)
             if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SYSTEM) {
                 TextButton(onClick = viewModel::refreshSystemMedia) {
                     Text(stringResource(R.string.music_refresh))
                 }
             }
         }
-        MusicStatus.Loading -> Text(stringResource(R.string.music_loading))
+        MusicStatus.Loading -> Text(stringResource(R.string.music_loading), color = colors.onSurface)
         is MusicStatus.Failed -> {
-            Text(stringResource(R.string.music_error))
-            Text(music.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.music_error), color = colors.onSurface)
+            Text(music.message, color = colors.onSurfaceVariant)
             if (state.musicSource == com.miguelthemann.remarkable.media.MusicSource.SPOTIFY) {
                 Button(onClick = viewModel::connectSpotify) {
                     Text(stringResource(R.string.spotify_connect))
@@ -228,6 +235,7 @@ private fun MusicReadyContent(
     showArt: Boolean,
     viewModel: ClockViewModel,
 ) {
+    val colors = LocalDeskModuleColors.current
     val art = track.artwork
     val year = track.releaseYear
     val appLabel = track.appLabel
@@ -253,6 +261,7 @@ private fun MusicReadyContent(
                     Text(
                         text = track.title,
                         style = MaterialTheme.typography.titleLarge,
+                        color = colors.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -261,7 +270,7 @@ private fun MusicReadyContent(
                     Text(
                         text = track.artist,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = colors.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -270,7 +279,7 @@ private fun MusicReadyContent(
                     Text(
                         text = track.album,
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = colors.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -279,14 +288,14 @@ private fun MusicReadyContent(
                     Text(
                         text = year,
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = colors.outline,
                     )
                 }
                 if (!appLabel.isNullOrBlank()) {
                     Text(
                         text = appLabel,
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = colors.outline,
                     )
                 }
             }
@@ -331,15 +340,17 @@ fun WeatherModule(
     onRequestLocation: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    val colors = LocalDeskModuleColors.current
+    ModuleSurface(
         modifier = modifier.widthIn(max = 380.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.86f),
-        ),
         shape = RoundedCornerShape(24.dp),
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.weather_title), style = MaterialTheme.typography.titleLarge)
+        Column {
+            Text(
+                stringResource(R.string.weather_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = colors.onSurface,
+            )
             Spacer(Modifier.height(8.dp))
             val weather = state.weather
             when {
@@ -354,24 +365,31 @@ fun WeatherModule(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Icon(
-                            weatherIcon(weather.weatherCode),
+                            weatherIcon(weather.weatherCode, state.now.hour),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = colors.accent,
                             modifier = Modifier.size(40.dp),
                         )
                         Column {
-                            Text(temp, style = MaterialTheme.typography.headlineMedium)
-                            Text(stringResource(weatherLabelRes(weather.weatherCode)))
+                            Text(
+                                temp,
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = colors.onSurface,
+                            )
+                            Text(
+                                stringResource(weatherLabelRes(weather.weatherCode)),
+                                color = colors.onSurface,
+                            )
                             Text(
                                 weather.place,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = colors.onSurfaceVariant,
                             )
                         }
                     }
                 }
                 state.weatherMessage is WeatherMessage.NeedsLocation -> {
-                    Text(stringResource(R.string.weather_permission))
+                    Text(stringResource(R.string.weather_permission), color = colors.onSurface)
                     if (onRequestLocation != null) {
                         TextButton(onClick = onRequestLocation) {
                             Text(stringResource(R.string.grant_location))
@@ -379,14 +397,14 @@ fun WeatherModule(
                     }
                 }
                 state.weatherMessage is WeatherMessage.Error -> {
-                    Text(stringResource(R.string.weather_unavailable))
+                    Text(stringResource(R.string.weather_unavailable), color = colors.onSurface)
                 }
-                else -> Text(stringResource(R.string.weather_unavailable))
+                else -> Text(stringResource(R.string.weather_unavailable), color = colors.onSurface)
             }
             Text(
                 stringResource(R.string.weather_attribution),
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.outline,
+                color = colors.outline,
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
