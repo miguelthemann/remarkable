@@ -239,7 +239,9 @@ private fun AppearanceSettings(state: ClockUiState, viewModel: ClockViewModel) {
             subtitle = settingsThemeLabel(state.themeMode),
             onClick = { themeDialog = true },
         )
-        if (state.themeMode != ThemeMode.MONET) {
+        if (state.themeMode == ThemeMode.MONET) {
+            SettingsHint(stringResource(R.string.settings_monet_accent_help))
+        } else {
             SettingsSectionLabel(stringResource(R.string.settings_accent))
             ColorSwatchRow(
                 selectedArgb = state.accentArgb,
@@ -294,7 +296,12 @@ private fun AppearanceSettings(state: ClockUiState, viewModel: ClockViewModel) {
     if (themeDialog) {
         SingleChoiceDialog(
             title = stringResource(R.string.settings_theme_mode),
-            options = ThemeMode.entries,
+            options = listOf(
+                ThemeMode.MONET,
+                ThemeMode.SYSTEM,
+                ThemeMode.LIGHT,
+                ThemeMode.DARK,
+            ),
             selected = state.themeMode,
             optionLabel = { settingsThemeLabel(it) },
             onSelect = viewModel::setThemeMode,

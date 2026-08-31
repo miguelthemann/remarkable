@@ -94,6 +94,7 @@
 
     <string name="settings_appearance">Aparência</string>
     <string name="settings_theme_mode">Tema</string>
+    <string name="settings_monet_accent_help">O Monet usa as cores do papel de parede. Escolhe outro tema para um destaque personalizado.</string>
     <string name="settings_accent">Cor de destaque</string>
     <string name="settings_background">Fundo</string>
     <string name="settings_clock_style">Estilo do relógio</string>

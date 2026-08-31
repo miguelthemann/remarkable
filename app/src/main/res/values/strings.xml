@@ -94,6 +94,7 @@
 
     <string name="settings_appearance">Appearance</string>
     <string name="settings_theme_mode">Theme</string>
+    <string name="settings_monet_accent_help">Monet uses colours from your wallpaper. Pick another theme to choose a custom accent.</string>
     <string name="settings_accent">Accent colour</string>
     <string name="settings_background">Background</string>
     <string name="settings_clock_style">Clock style</string>
