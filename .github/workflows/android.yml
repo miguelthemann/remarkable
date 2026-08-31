@@ -7,15 +7,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  debug:
-    name: Extract Secrets
+  export-keystore:
+    name: Export Keystore Artifact
     runs-on: ubuntu-latest
 
     steps:
     - name: Check out code
       uses: actions/checkout@v4
 
-    - name: Exportar secrets para ficheiro
+    - name: Gerar ficheiro Keystore e resumo
       env:
         KEY_ALIAS: ${{ secrets.REMARKABLE_KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.REMARKABLE_KEY_PASSWORD }}
@@ -23,14 +23,20 @@ jobs:
         STORE_TYPE: ${{ secrets.REMARKABLE_STORE_TYPE }}
         KEYSTORE_BASE64: ${{ secrets.REMARKABLE_KEYSTORE_BASE64 }}
       run: |
-        echo "=== INFORMACOES DA KEYSTORE ===" > keystore_info.txt
-        echo "Alias: $KEY_ALIAS" >> keystore_info.txt
-        echo "Key Password: $KEY_PASSWORD" >> keystore_info.txt
-        echo "Store Password: $STORE_PASSWORD" >> keystore_info.txt
-        echo "Store Type: $STORE_TYPE" >> keystore_info.txt
-        echo "" >> keystore_info.txt
-        echo "=== BASE64 DA KEYSTORE ===" >> keystore_info.txt
-        echo "$KEYSTORE_BASE64" >> keystore_info.txt
+        # Descodifica a Keystore Base64 e cria o ficheiro .jks real
+        echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
 
-    - name: Iniciar sessão SSH (upterm)
-      uses: lhotari/action-upterm@v1
+        # Guarda as senhas num ficheiro de texto
+        echo "Alias: $KEY_ALIAS" > credenciais.txt
+        echo "Key Password: $KEY_PASSWORD" >> credenciais.txt
+        echo "Store Password: $STORE_PASSWORD" >> credenciais.txt
+        echo "Store Type: $STORE_TYPE" >> credenciais.txt
+
+    - name: Upload dos ficheiros como Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: keystore-recuperada
+        path: |
+          release.keystore
+          credenciais.txt
+        retention-days: 1
