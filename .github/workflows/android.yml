@@ -48,27 +48,22 @@ jobs:
       - name: Make scripts executable
         run: chmod +x gradlew scripts/ci-release.sh
 
-      - name: Bump version + changelog
-        id: bump
+      - name: Prepare release metadata
+        id: prepare
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         run: |
           mkdir -p dist
-          ./scripts/ci-release.sh dist
+          ./scripts/ci-release.sh prepare dist
           cat dist/version.env >> "$GITHUB_OUTPUT"
-          # Also expose for later steps via GITHUB_ENV
           cat dist/version.env >> "$GITHUB_ENV"
 
-      - name: Read version (PR builds — no bump)
-        id: version_pr
+      - name: Read version (PR builds — no release)
         if: github.event_name == 'pull_request'
         run: |
           code=$(grep -E '^REMARKABLE_VERSION_CODE=' gradle.properties | cut -d= -f2 | tr -d '\r')
           name=$(grep -E '^REMARKABLE_VERSION_NAME=' gradle.properties | cut -d= -f2 | tr -d '\r')
           codename=$(grep -E '^REMARKABLE_VERSION_CODENAME=' gradle.properties | cut -d= -f2- | tr -d '\r')
-          echo "code=$code" >> "$GITHUB_OUTPUT"
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "codename=$codename" >> "$GITHUB_OUTPUT"
-          echo "tag=v$name" >> "$GITHUB_OUTPUT"
+          echo "PR build ${name} ${codename} (code ${code})"
 
       - name: Assemble debug
         run: ./gradlew :app:assembleDebug --stacktrace
@@ -126,9 +121,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit version bump
+      - name: Bump version for next release
         if: github.event_name != 'pull_request' && env.name != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
+          ./scripts/ci-release.sh bump-next
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add gradle.properties
@@ -136,5 +132,7 @@ jobs:
             echo "No version changes to commit"
             exit 0
           fi
-          git commit -m "chore(release): ${name} ${codename} [skip ci]"
+          next_name=$(grep -E '^REMARKABLE_VERSION_NAME=' gradle.properties | cut -d= -f2 | tr -d '\r')
+          next_codename=$(grep -E '^REMARKABLE_VERSION_CODENAME=' gradle.properties | cut -d= -f2- | tr -d '\r')
+          git commit -m "chore(release): next is ${next_name} ${next_codename} [skip ci]"
           git push
