@@ -463,6 +463,27 @@ private fun MusicSettings(state: ClockUiState, viewModel: ClockViewModel, contex
                     label = { Text(stringResource(R.string.settings_client_id)) },
                     singleLine = true,
                 )
+                if (state.spotifyClientId.isNotBlank()) {
+                    SettingsHint(
+                        if (state.spotifyAuthorized) {
+                            stringResource(R.string.settings_spotify_authorized)
+                        } else {
+                            stringResource(R.string.settings_spotify_not_authorized)
+                        },
+                    )
+                    Button(
+                        onClick = viewModel::authorizeSpotify,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            if (state.spotifyAuthorized) {
+                                stringResource(R.string.settings_spotify_reauthorize)
+                            } else {
+                                stringResource(R.string.spotify_authorize)
+                            },
+                        )
+                    }
+                }
             }
             MusicSource.LASTFM -> {
                 SettingsHint(stringResource(R.string.settings_lastfm_help))

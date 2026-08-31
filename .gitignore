@@ -16,4 +16,8 @@
 keystore.properties
 *.jks
 *.keystore
+*.p12
 !debug.keystore
+/app/keystore/
+compile-out.txt
+.vscode

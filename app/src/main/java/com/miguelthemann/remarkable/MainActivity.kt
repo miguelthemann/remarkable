@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.miguelthemann.remarkable.ui.RemarkableNav
 import com.miguelthemann.remarkable.ui.clock.ClockViewModel
+import com.miguelthemann.remarkable.ui.spotify.SpotifyAuthHandler
 import com.miguelthemann.remarkable.ui.theme.RemarkableTheme
 
 class MainActivity : ComponentActivity() {
@@ -29,6 +30,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: ClockViewModel = viewModel()
             val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+            SpotifyAuthHandler(viewModel)
 
             LaunchedEffect(state.keepAwake, state.nightDim) {
                 if (state.keepAwake) {

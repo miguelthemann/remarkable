@@ -62,13 +62,19 @@
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+        </activity>
+
+        <!-- Required by Spotify Auth SDK 2.1+ for OAuth redirect -->
+        <activity
+            android:name="com.spotify.sdk.android.auth.browser.RedirectUriReceiverActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:host="callback"
-                    android:scheme="remarkable" />
+                    android:host="${redirectHostName}"
+                    android:scheme="${redirectSchemeName}" />
             </intent-filter>
         </activity>
 
