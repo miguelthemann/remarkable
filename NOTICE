@@ -25,16 +25,28 @@ OkHttp
   Apache License 2.0
   https://github.com/square/okhttp
 
-Spotify Android SDK (Auth and App Remote)
+Spotify Android Auth library
   Copyright Spotify AB
   Proprietary — licensed under Spotify’s developer terms
-  https://developer.spotify.com/documentation/android
-  https://github.com/spotify/android-sdk
+  Maven Central: com.spotify.android:auth
+  https://github.com/spotify/android-auth
 
-  The Spotify SDK is not part of this MIT-licensed work. It is requested from
-  Maven Central when you build the app. Using Spotify features also requires
-  a Spotify developer application, the Spotify app on the device, and
-  compliance with Spotify’s Developer Terms of Service and Design Guidelines.
+Spotify App Remote SDK
+  Copyright Spotify AB
+  Proprietary — licensed under Spotify’s developer terms
+  Not on Maven Central. Gradle downloads
+  spotify-app-remote-release-0.8.0.aar from
+  https://github.com/spotify/android-sdk/releases
+  at build time; the AAR is not committed here.
+
+  Using Spotify features also requires a Spotify developer application,
+  the Spotify app on the device, and compliance with Spotify’s Developer
+  Terms of Service and Design Guidelines.
+
+Gson
+  Copyright Google LLC
+  Apache License 2.0
+  https://github.com/google/gson
 
 Gradle Wrapper scripts (if generated in this tree)
   Copyright Gradle Inc.

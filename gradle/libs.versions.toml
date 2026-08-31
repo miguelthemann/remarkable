@@ -1,5 +1,5 @@
 [versions]
-agp = "8.7.3"
+agp = "8.9.1"
 kotlin = "2.0.21"
 coreKtx = "1.13.1"
 lifecycle = "2.8.7"
@@ -10,7 +10,7 @@ datastore = "1.1.1"
 okhttp = "4.12.0"
 serialization = "1.7.3"
 spotifyAuth = "2.1.1"
-spotifyRemote = "0.8.0"
+gson = "2.11.0"
 coroutines = "1.9.0"
 
 [libraries]
@@ -31,7 +31,7 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 spotify-auth = { group = "com.spotify.android", name = "auth", version.ref = "spotifyAuth" }
-spotify-app-remote = { group = "com.spotify.protocol", name = "spotify-app-remote", version.ref = "spotifyRemote" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

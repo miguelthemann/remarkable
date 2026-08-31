@@ -29,9 +29,9 @@ O código, recursos e documentação **deste repositório** estão sob MIT — v
 
 Isto **não** cobre:
 
-- o **Spotify Android SDK** (proprietário; obtido no Maven no momento do *build*; sujeito aos [termos de developer da Spotify](https://developer.spotify.com/terms))
+- o **Spotify Auth** (Maven Central) e o **App Remote** (AAR do GitHub no *build*; não está no Maven)
 - dados de meteorologia da Open-Meteo (CC BY 4.0; a atribuição aparece na UI)
-- bibliotecas AndroidX, Kotlin e OkHttp (Apache 2.0), descarregadas pelo Gradle
+- bibliotecas AndroidX, Kotlin, OkHttp e Gson (Apache 2.0), descarregadas pelo Gradle
 
 Não há SDK da Spotify nem binários de terceiros *vendored* neste repositório.
 
@@ -50,7 +50,7 @@ sudo apt install --no-install-recommends openjdk-17-jdk git wget unzip android-s
 
 **Fedora**
 
-O OpenJDK 17 da distro (`java-17-openjdk-devel`) foi retirado a partir do Fedora 42; no Fedora 44 também já não há `java-21-openjdk`. O JDK do sistema é o 25, que não serve para este projeto (Gradle 8.9 / AGP 8.7).
+O OpenJDK 17 da distro (`java-17-openjdk-devel`) foi retirado a partir do Fedora 42; no Fedora 44 também já não há `java-21-openjdk`. O JDK do sistema é o 25, que não serve para este projeto (Gradle 8.11 / AGP 8.9).
 
 Instala o JDK 17 do Eclipse Temurin, pelo repositório que o Fedora fornece:
 
@@ -120,35 +120,35 @@ O caminho tem de coincidir com `ANDROID_HOME`.
 
 ## Wrapper Gradle
 
-O `gradle-wrapper.jar` (Apache 2.0) **não está** no repositório, para não incluir binários. Gera-o uma vez, com o Gradle da distro **ou** um Gradle 8.9 já instalado:
+O `gradle-wrapper.jar` (Apache 2.0) **não está** no repositório, para não incluir binários. Gera-o uma vez, com o Gradle da distro **ou** um Gradle 8.11 já instalado:
 
 **Debian / Ubuntu**
 
 ```bash
 sudo apt install --no-install-recommends gradle
-gradle wrapper --gradle-version 8.9
+gradle wrapper --gradle-version 8.11.1
 ```
 
-O `gradle` do APT pode ser mais antigo que 8.9; o *wrapper* que ele gera ainda descarrega o Gradle **8.9** na primeira compilação.
+O `gradle` do APT pode ser mais antigo que 8.11; o *wrapper* que ele gera ainda descarrega o Gradle **8.11.1** na primeira compilação.
 
 **Fedora**
 
 ```bash
 sudo dnf install gradle
-gradle wrapper --gradle-version 8.9
+gradle wrapper --gradle-version 8.11.1
 ```
 
 **Arch Linux**
 
 ```bash
 sudo pacman -S --needed gradle
-gradle wrapper --gradle-version 8.9
+gradle wrapper --gradle-version 8.11.1
 ```
 
 Em alternativa, descarrega o JAR oficial e coloca-o em `gradle/wrapper/gradle-wrapper.jar`:
 
 ```text
-https://github.com/gradle/gradle/raw/v8.9.0/gradle/wrapper/gradle-wrapper.jar
+https://github.com/gradle/gradle/raw/v8.11.1/gradle/wrapper/gradle-wrapper.jar
 ```
 
 Torna o script executável:
@@ -157,7 +157,9 @@ Torna o script executável:
 chmod +x gradlew
 ```
 
-Versões alinhadas com o projeto: **Gradle 8.9**, **Android Gradle Plugin 8.7.3**, **Kotlin 2.0.21**.
+Versões alinhadas com o projeto: **Gradle 8.11.1**, **Android Gradle Plugin 8.9.1**, **Kotlin 2.0.21**.
+
+O *build* precisa de rede na primeira vez: o Gradle descarrega `spotify-app-remote-release-0.8.0.aar` de [github.com/spotify/android-sdk](https://github.com/spotify/android-sdk/releases) para `app/libs/` (ficheiro ignorado pelo Git).
 
 ## Compilar
 

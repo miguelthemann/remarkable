@@ -98,5 +98,34 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.spotify.auth)
-    implementation(libs.spotify.app.remote)
+    implementation(libs.gson)
+    implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
+}
+
+val spotifyAppRemoteAar = layout.projectDirectory.file("libs/spotify-app-remote-release-0.8.0.aar")
+val spotifyAppRemoteUrl = uri(
+    "https://github.com/spotify/android-sdk/releases/download/" +
+        "v0.8.0-appremote_v2.1.0-auth/spotify-app-remote-release-0.8.0.aar",
+)
+val fetchSpotifyAppRemote = tasks.register("fetchSpotifyAppRemote") {
+    description = "Downloads Spotify App Remote AAR from GitHub (not published to Maven)."
+    group = "spotify"
+    outputs.file(spotifyAppRemoteAar)
+    doLast {
+        val dest = spotifyAppRemoteAar.asFile
+        if (dest.length() > 0L) return@doLast
+        dest.parentFile.mkdirs()
+        val url = spotifyAppRemoteUrl.toURL()
+        logger.lifecycle("Downloading Spotify App Remote from $url")
+        url.openStream().use { input ->
+            dest.outputStream().use { output -> input.copyTo(output) }
+        }
+        check(dest.length() > 0L) { "Spotify App Remote download produced an empty file." }
+    }
+}
+
+tasks.configureEach {
+    if (name == "preBuild" || name.endsWith("AarMetadata")) {
+        dependsOn(fetchSpotifyAppRemote)
+    }
 }
