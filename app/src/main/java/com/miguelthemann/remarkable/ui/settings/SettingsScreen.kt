@@ -303,7 +303,7 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_reset_modules))
             }
 
-            HorizontalDivider(Modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SectionTitle(stringResource(R.string.settings_music))
             Text(
                 text = stringResource(R.string.settings_music_source_help),

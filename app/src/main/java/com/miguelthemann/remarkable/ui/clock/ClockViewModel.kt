@@ -261,7 +261,7 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(music = MusicStatus.NeedLastFmSetup) }
             return
         }
-        while (isActive) {
+        while (true) {
             _uiState.update { it.copy(music = MusicStatus.Loading) }
             val result = runCatching {
                 lastFm.recentTrack(settings.lastFmApiKey, settings.lastFmUsername)

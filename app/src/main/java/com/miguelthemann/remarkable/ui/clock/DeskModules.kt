@@ -209,85 +209,106 @@ private fun SpotifyStatusBody(
             }
         }
         is MusicStatus.Ready -> {
-            val track = music.track
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                if (showArt && track.artwork != null) {
-                    Image(
-                        bitmap = track.artwork.asImageBitmap(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(14.dp)),
+            MusicReadyContent(
+                state = state,
+                track = music.track,
+                canControl = music.canControl,
+                showArt = showArt,
+                viewModel = viewModel,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MusicReadyContent(
+    state: ClockUiState,
+    track: NowPlayingTrack,
+    canControl: Boolean,
+    showArt: Boolean,
+    viewModel: ClockViewModel,
+) {
+    val art = track.artwork
+    val year = track.releaseYear
+    val appLabel = track.appLabel
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        if (showArt && art != null) {
+            Image(
+                bitmap = art.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+            )
+        } else if (showArt) {
+            SpotifyIconBadge(state)
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            Column {
+                if (state.showTrackTitle) {
+                    Text(
+                        text = track.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                } else if (showArt) {
-                    SpotifyIconBadge(state)
                 }
-                Column(Modifier = Modifier.weight(1f)) {
-                    if (state.showTrackTitle) {
-                        Text(
-                            track.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (state.showArtist && track.artist.isNotBlank()) {
-                        Text(
-                            track.artist,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (state.showAlbum && track.album.isNotBlank()) {
-                        Text(
-                            track.album,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (state.showReleaseYear && !track.releaseYear.isNullOrBlank()) {
-                        Text(
-                            track.releaseYear,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.outline,
-                        )
-                    }
-                    if (!track.appLabel.isNullOrBlank()) {
-                        Text(
-                            track.appLabel,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.outline,
-                        )
-                    }
+                if (state.showArtist && track.artist.isNotBlank()) {
+                    Text(
+                        text = track.artist,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (state.showAlbum && track.album.isNotBlank()) {
+                    Text(
+                        text = track.album,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (state.showReleaseYear && !year.isNullOrBlank()) {
+                    Text(
+                        text = year,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
+                if (!appLabel.isNullOrBlank()) {
+                    Text(
+                        text = appLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
                 }
             }
-            if (music.canControl) {
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    FilledTonalIconButton(onClick = viewModel::skipPrevious) {
-                        Icon(Icons.Outlined.SkipPrevious, contentDescription = stringResource(R.string.skip_previous))
-                    }
-                    FilledTonalIconButton(onClick = viewModel::playPause) {
-                        Icon(
-                            if (track.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                            contentDescription = null,
-                        )
-                    }
-                    FilledTonalIconButton(onClick = viewModel::skipNext) {
-                        Icon(Icons.Outlined.SkipNext, contentDescription = stringResource(R.string.skip_next))
-                    }
-                }
+        }
+    }
+    if (canControl) {
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            FilledTonalIconButton(onClick = viewModel::skipPrevious) {
+                Icon(Icons.Outlined.SkipPrevious, contentDescription = stringResource(R.string.skip_previous))
+            }
+            FilledTonalIconButton(onClick = viewModel::playPause) {
+                Icon(
+                    imageVector = if (track.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                    contentDescription = null,
+                )
+            }
+            FilledTonalIconButton(onClick = viewModel::skipNext) {
+                Icon(Icons.Outlined.SkipNext, contentDescription = stringResource(R.string.skip_next))
             }
         }
     }
