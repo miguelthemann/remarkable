@@ -6,7 +6,7 @@ Copyright (c) 2026 Miguel Guerra · [MIT license](LICENSE) · third-party notice
 
 You can build Remarkable on **Debian**, **Ubuntu**, **Fedora**, and **Arch Linux**.
 
-**NOTICE:** The app in the releases page is unable to the Spotify integration working. If you really need Spotify, please build it yourself. Otherwise, everything else should work.
+**NOTICE:** The app in the releases page is unable to use the Spotify integration working. If you really need Spotify, please build it yourself. Otherwise, everything else should work.
 
 ## What you get
 
